@@ -245,10 +245,14 @@ defmodule TswIo.Serial.Connection.StateTest do
     test "returns true for ports in any status" do
       # Arrange
       ports_by_status = [
-        {"/dev/tty.connecting", SerialTestHelpers.build_connecting_connection(port: "/dev/tty.connecting")},
-        {"/dev/tty.discovering", SerialTestHelpers.build_discovering_connection(port: "/dev/tty.discovering")},
-        {"/dev/tty.connected", SerialTestHelpers.build_connected_connection(port: "/dev/tty.connected")},
-        {"/dev/tty.disconnecting", SerialTestHelpers.build_disconnecting_connection(port: "/dev/tty.disconnecting")},
+        {"/dev/tty.connecting",
+         SerialTestHelpers.build_connecting_connection(port: "/dev/tty.connecting")},
+        {"/dev/tty.discovering",
+         SerialTestHelpers.build_discovering_connection(port: "/dev/tty.discovering")},
+        {"/dev/tty.connected",
+         SerialTestHelpers.build_connected_connection(port: "/dev/tty.connected")},
+        {"/dev/tty.disconnecting",
+         SerialTestHelpers.build_disconnecting_connection(port: "/dev/tty.disconnecting")},
         {"/dev/tty.failed", SerialTestHelpers.build_failed_connection(port: "/dev/tty.failed")}
       ]
 
@@ -328,7 +332,9 @@ defmodule TswIo.Serial.Connection.StateTest do
       conn_connected = SerialTestHelpers.build_connected_connection(port: port_connected)
 
       port_disconnecting = "/dev/tty.disconnecting"
-      conn_disconnecting = SerialTestHelpers.build_disconnecting_connection(port: port_disconnecting)
+
+      conn_disconnecting =
+        SerialTestHelpers.build_disconnecting_connection(port: port_disconnecting)
 
       port_failed = "/dev/tty.failed"
       conn_failed = SerialTestHelpers.build_failed_connection(port: port_failed)

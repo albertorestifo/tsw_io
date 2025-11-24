@@ -96,11 +96,16 @@ defmodule TswIo.Serial.ConnectionTest do
 
       # Act - port is tracked and not failed
       is_tracked = State.tracked?(state, port)
-      should_retry = case State.get(state, port) do
-        nil -> true
-        conn -> conn.status == :failed and
-                System.monotonic_time(:millisecond) - (conn.failed_at || 0) >= 30_000
-      end
+
+      should_retry =
+        case State.get(state, port) do
+          nil ->
+            true
+
+          conn ->
+            conn.status == :failed and
+              System.monotonic_time(:millisecond) - (conn.failed_at || 0) >= 30_000
+        end
 
       # Assert
       assert is_tracked == true
@@ -127,7 +132,8 @@ defmodule TswIo.Serial.ConnectionTest do
       # Arrange
       port = "/dev/tty.test"
       backoff_ms = 30_000
-      failed_at = System.monotonic_time(:millisecond) - 100  # Recent failure
+      # Recent failure
+      failed_at = System.monotonic_time(:millisecond) - 100
       conn = SerialTestHelpers.build_failed_connection(port: port, failed_at: failed_at)
       state = SerialTestHelpers.build_state([{port, conn}])
 
@@ -176,10 +182,12 @@ defmodule TswIo.Serial.ConnectionTest do
       conn_disconnecting = State.get(state, port) |> Map.put(:status, :disconnecting)
       state_disconnecting = State.put(state, conn_disconnecting)
 
-      conn_failed = State.get(state_disconnecting, port)
-                    |> Map.put(:status, :failed)
-                    |> Map.put(:pid, nil)
-                    |> Map.put(:failed_at, System.monotonic_time(:millisecond))
+      conn_failed =
+        State.get(state_disconnecting, port)
+        |> Map.put(:status, :failed)
+        |> Map.put(:pid, nil)
+        |> Map.put(:failed_at, System.monotonic_time(:millisecond))
+
       state_failed = State.put(state_disconnecting, conn_failed)
 
       # Assert

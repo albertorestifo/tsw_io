@@ -13,11 +13,12 @@ defmodule TswIo.Serial.DiscoveryTest do
     end
 
     def init(opts) do
-      {:ok, %{
-        responses: Keyword.get(opts, :responses, []),
-        write_result: Keyword.get(opts, :write_result, :ok),
-        drain_result: Keyword.get(opts, :drain_result, :ok)
-      }}
+      {:ok,
+       %{
+         responses: Keyword.get(opts, :responses, []),
+         write_result: Keyword.get(opts, :write_result, :ok),
+         drain_result: Keyword.get(opts, :drain_result, :ok)
+       }}
     end
 
     def handle_call(:write, _from, state) do
@@ -67,11 +68,12 @@ defmodule TswIo.Serial.DiscoveryTest do
       {:ok, encoded_response} = Protocol.IdentityResponse.encode(identity_response)
 
       # Mock UART that returns a valid identity response
-      {:ok, uart_pid} = MockUART.start_link(
-        responses: [{:ok, encoded_response}],
-        write_result: :ok,
-        drain_result: :ok
-      )
+      {:ok, uart_pid} =
+        MockUART.start_link(
+          responses: [{:ok, encoded_response}],
+          write_result: :ok,
+          drain_result: :ok
+        )
 
       # Act
       result = discover_with_mock(uart_pid)
@@ -94,9 +96,7 @@ defmodule TswIo.Serial.DiscoveryTest do
 
       {:ok, encoded_response} = Protocol.IdentityResponse.encode(identity_response)
 
-      {:ok, uart_pid} = MockUART.start_link(
-        responses: [{:ok, encoded_response}]
-      )
+      {:ok, uart_pid} = MockUART.start_link(responses: [{:ok, encoded_response}])
 
       # Act
       result = discover_with_mock(uart_pid)
@@ -120,15 +120,17 @@ defmodule TswIo.Serial.DiscoveryTest do
         version: 1,
         config_id: 0
       }
+
       {:ok, encoded_valid} = Protocol.IdentityResponse.encode(valid_response)
 
-      {:ok, uart_pid} = MockUART.start_link(
-        responses: [
-          {:ok, encoded_unexpected},
-          {:ok, encoded_unexpected},
-          {:ok, encoded_valid}
-        ]
-      )
+      {:ok, uart_pid} =
+        MockUART.start_link(
+          responses: [
+            {:ok, encoded_unexpected},
+            {:ok, encoded_unexpected},
+            {:ok, encoded_valid}
+          ]
+        )
 
       # Act
       result = discover_with_mock(uart_pid)
@@ -142,13 +144,14 @@ defmodule TswIo.Serial.DiscoveryTest do
       unexpected_msg = %Protocol.Heartbeat{}
       {:ok, encoded_unexpected} = Protocol.Heartbeat.encode(unexpected_msg)
 
-      {:ok, uart_pid} = MockUART.start_link(
-        responses: [
-          {:ok, encoded_unexpected},
-          {:ok, encoded_unexpected},
-          {:ok, encoded_unexpected}
-        ]
-      )
+      {:ok, uart_pid} =
+        MockUART.start_link(
+          responses: [
+            {:ok, encoded_unexpected},
+            {:ok, encoded_unexpected},
+            {:ok, encoded_unexpected}
+          ]
+        )
 
       # Act
       result = discover_with_mock(uart_pid)
@@ -159,13 +162,14 @@ defmodule TswIo.Serial.DiscoveryTest do
 
     test "returns error after 3 failed attempts with timeouts" do
       # Arrange
-      {:ok, uart_pid} = MockUART.start_link(
-        responses: [
-          {:error, :timeout},
-          {:error, :timeout},
-          {:error, :timeout}
-        ]
-      )
+      {:ok, uart_pid} =
+        MockUART.start_link(
+          responses: [
+            {:error, :timeout},
+            {:error, :timeout},
+            {:error, :timeout}
+          ]
+        )
 
       # Act
       result = discover_with_mock(uart_pid)
@@ -177,11 +181,12 @@ defmodule TswIo.Serial.DiscoveryTest do
     test "returns error on first timeout" do
       # Arrange
       # Note: Timeouts don't trigger retries - only unexpected message types do
-      {:ok, uart_pid} = MockUART.start_link(
-        responses: [
-          {:error, :timeout}
-        ]
-      )
+      {:ok, uart_pid} =
+        MockUART.start_link(
+          responses: [
+            {:error, :timeout}
+          ]
+        )
 
       # Act
       result = discover_with_mock(uart_pid)
@@ -194,9 +199,7 @@ defmodule TswIo.Serial.DiscoveryTest do
   describe "discover/1 - error handling" do
     test "returns error when UART write fails" do
       # Arrange
-      {:ok, uart_pid} = MockUART.start_link(
-        write_result: {:error, :eio}
-      )
+      {:ok, uart_pid} = MockUART.start_link(write_result: {:error, :eio})
 
       # Act
       result = discover_with_mock(uart_pid)
@@ -207,9 +210,7 @@ defmodule TswIo.Serial.DiscoveryTest do
 
     test "returns error when UART drain fails" do
       # Arrange
-      {:ok, uart_pid} = MockUART.start_link(
-        drain_result: {:error, :closed}
-      )
+      {:ok, uart_pid} = MockUART.start_link(drain_result: {:error, :closed})
 
       # Act
       result = discover_with_mock(uart_pid)
@@ -220,9 +221,7 @@ defmodule TswIo.Serial.DiscoveryTest do
 
     test "returns error when UART read fails immediately" do
       # Arrange
-      {:ok, uart_pid} = MockUART.start_link(
-        responses: [{:error, :closed}]
-      )
+      {:ok, uart_pid} = MockUART.start_link(responses: [{:error, :closed}])
 
       # Act
       result = discover_with_mock(uart_pid)
@@ -235,9 +234,7 @@ defmodule TswIo.Serial.DiscoveryTest do
       # Arrange
       malformed_data = <<0xFF, 0xFF, 0xFF, 0xFF>>
 
-      {:ok, uart_pid} = MockUART.start_link(
-        responses: [{:ok, malformed_data}]
-      )
+      {:ok, uart_pid} = MockUART.start_link(responses: [{:ok, malformed_data}])
 
       # Act
       result = discover_with_mock(uart_pid)
@@ -251,9 +248,7 @@ defmodule TswIo.Serial.DiscoveryTest do
   describe "discover/1 - edge cases" do
     test "handles empty response data" do
       # Arrange
-      {:ok, uart_pid} = MockUART.start_link(
-        responses: [{:ok, <<>>}]
-      )
+      {:ok, uart_pid} = MockUART.start_link(responses: [{:ok, <<>>}])
 
       # Act
       result = discover_with_mock(uart_pid)
@@ -271,11 +266,10 @@ defmodule TswIo.Serial.DiscoveryTest do
         version: 231,
         config_id: 888
       }
+
       {:ok, encoded_valid} = Protocol.IdentityResponse.encode(valid_response)
 
-      {:ok, uart_pid} = MockUART.start_link(
-        responses: [{:ok, encoded_valid}]
-      )
+      {:ok, uart_pid} = MockUART.start_link(responses: [{:ok, encoded_valid}])
 
       # Act
       result = discover_with_mock(uart_pid)
@@ -309,11 +303,12 @@ defmodule TswIo.Serial.DiscoveryTest do
   defp read_response_with_mock(uart_pid, attempt) do
     with {:ok, data} <- MockUART.read(uart_pid, 1_000),
          {:ok, %Protocol.IdentityResponse{} = response} <- Protocol.Message.decode(data) do
-      {:ok, %Device{
-        id: response.device_id,
-        version: response.version,
-        config_id: response.config_id
-      }}
+      {:ok,
+       %Device{
+         id: response.device_id,
+         version: response.version,
+         config_id: response.config_id
+       }}
     else
       {:ok, _other} -> read_response_with_mock(uart_pid, attempt + 1)
       {:error, reason} -> {:error, reason}

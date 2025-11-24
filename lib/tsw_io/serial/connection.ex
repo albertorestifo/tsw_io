@@ -13,6 +13,7 @@ defmodule TswIo.Serial.Connection do
   alias TswIo.Serial.Connection.State
   alias TswIo.Serial.Discovery
   alias TswIo.Serial.Framing
+  alias TswIo.Serial.Protocol.Message
 
   require Logger
 
@@ -66,7 +67,14 @@ defmodule TswIo.Serial.Connection do
 
   @impl true
   def handle_info({:circuits_uart, port, data}, state) do
-    Logger.info("Received data from port #{port}: #{inspect(data)}")
+    case Message.decode(data) do
+      {:ok, message} ->
+        Logger.debug("Received message from port #{port}: #{inspect(message)}")
+
+      {:error, reason} ->
+        Logger.warning("Failed to decode message from port #{port}: #{inspect(reason)}")
+    end
+
     {:noreply, state}
   end
 
