@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mix compile:*)",
+      "Bash(elixir:*)",
+      "Bash(mise --version:*)",
+      "Bash(asdf:*)",
+      "Bash(mise exec:*)",
+      "Bash(mix test:*)",
+      "Bash(cat:*)",
+      "Bash(mise current:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
