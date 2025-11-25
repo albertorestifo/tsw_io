@@ -1,8 +1,8 @@
-defmodule TswIo.Device do
+defmodule TswIo.Hardware.Device do
   use Ecto.Schema
   import Ecto.Changeset
 
-  alias TswIo.Device.Input
+  alias TswIo.Hardware.Input
 
   schema "devices" do
     field :name, :string

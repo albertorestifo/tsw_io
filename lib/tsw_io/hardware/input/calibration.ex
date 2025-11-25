@@ -1,8 +1,8 @@
-defmodule TswIo.Device.Input.Calibration do
+defmodule TswIo.Hardware.Input.Calibration do
   use Ecto.Schema
   import Ecto.Changeset
 
-  alias TswIo.Device.Input
+  alias TswIo.Hardware.Input
 
   schema "device_input_calibrations" do
     field :max_hardware_value, :integer

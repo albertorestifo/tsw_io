@@ -1,9 +1,9 @@
-defmodule TswIo.Device.Input do
+defmodule TswIo.Hardware.Input do
   use Ecto.Schema
   import Ecto.Changeset
 
-  alias TswIo.Device
-  alias TswIo.Device.Input.Calibration
+  alias TswIo.Hardware.Device
+  alias TswIo.Hardware.Input.Calibration
 
   schema "device_inputs" do
     field :pin, :integer
