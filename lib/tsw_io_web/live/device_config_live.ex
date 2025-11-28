@@ -3,6 +3,7 @@ defmodule TswIoWeb.DeviceConfigLive do
 
   alias TswIo.Hardware
   alias TswIo.Hardware.Input
+  alias TswIo.Hardware.Calibration.Session
   alias TswIo.Serial.Connection
 
   @impl true
@@ -40,7 +41,8 @@ defmodule TswIoWeb.DeviceConfigLive do
            :form,
            to_form(Input.changeset(%Input{}, %{input_type: :analog, sensitivity: 5}))
          )
-         |> assign(:applying, false)}
+         |> assign(:applying, false)
+         |> assign(:calibrating_input, nil)}
     end
   end
 
@@ -148,7 +150,59 @@ defmodule TswIoWeb.DeviceConfigLive do
     end
   end
 
+  @impl true
+  def handle_event("start_calibration", %{"id" => id}, socket) do
+    input = Enum.find(socket.assigns.inputs, &(&1.id == String.to_integer(id)))
+
+    if input && !socket.assigns.draft_mode do
+      Session.subscribe(input.id)
+      {:noreply, assign(socket, :calibrating_input, input)}
+    else
+      {:noreply, socket}
+    end
+  end
+
   # PubSub Event Handlers
+
+  @impl true
+  def handle_info({:calibration_result, {:ok, _calibration}}, socket) do
+    {:ok, inputs} = Hardware.list_inputs(socket.assigns.device.id)
+
+    {:noreply,
+     socket
+     |> assign(:inputs, inputs)
+     |> assign(:calibrating_input, nil)
+     |> put_flash(:info, "Calibration saved successfully")}
+  end
+
+  @impl true
+  def handle_info({:calibration_result, {:error, reason}}, socket) do
+    {:noreply,
+     socket
+     |> assign(:calibrating_input, nil)
+     |> put_flash(:error, "Calibration failed: #{inspect(reason)}")}
+  end
+
+  @impl true
+  def handle_info(:calibration_cancelled, socket) do
+    {:noreply, assign(socket, :calibrating_input, nil)}
+  end
+
+  @impl true
+  def handle_info({:calibration_error, reason}, socket) do
+    {:noreply,
+     socket
+     |> assign(:calibrating_input, nil)
+     |> put_flash(:error, "Failed to start calibration: #{inspect(reason)}")}
+  end
+
+  @impl true
+  def handle_info({event, _state}, socket)
+      when event in [:session_started, :step_changed, :sample_collected] do
+    # These events are handled by the CalibrationWizard component
+    # We just need to let them through without crashing
+    {:noreply, socket}
+  end
 
   @impl true
   def handle_info({:configuration_applied, _port, device, _config_id}, socket) do
@@ -231,6 +285,14 @@ defmodule TswIoWeb.DeviceConfigLive do
       </main>
 
       <.add_input_modal :if={@modal_open} form={@form} />
+
+      <.live_component
+        :if={@calibrating_input}
+        module={TswIoWeb.CalibrationWizard}
+        id="calibration-wizard"
+        input={@calibrating_input}
+        port={@port}
+      />
     </div>
     """
   end
@@ -336,7 +398,7 @@ defmodule TswIoWeb.DeviceConfigLive do
             <th>Type</th>
             <th>Sensitivity</th>
             <th>Value</th>
-            <th class="w-16"></th>
+            <th class="w-24"></th>
           </tr>
         </thead>
         <tbody>
@@ -352,7 +414,16 @@ defmodule TswIoWeb.DeviceConfigLive do
                 draft_mode={@draft_mode}
               />
             </td>
-            <td>
+            <td class="flex gap-1">
+              <button
+                :if={!@draft_mode}
+                phx-click="start_calibration"
+                phx-value-id={input.id}
+                class="btn btn-ghost btn-xs text-primary hover:bg-primary/10"
+                aria-label="Calibrate input"
+              >
+                <.icon name="hero-adjustments-horizontal" class="w-4 h-4" />
+              </button>
               <button
                 phx-click="delete_input"
                 phx-value-id={input.id}

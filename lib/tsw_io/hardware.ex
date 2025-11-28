@@ -7,6 +7,8 @@ defmodule TswIo.Hardware do
 
   alias TswIo.Repo
   alias TswIo.Hardware.{Device, Input}
+  alias TswIo.Hardware.Input.Calibration
+  alias TswIo.Hardware.Calibration.{Calculator, SessionSupervisor}
 
   # Delegate configuration operations to ConfigurationManager
   defdelegate apply_configuration(port, device_id), to: TswIo.Hardware.ConfigurationManager
@@ -142,4 +144,82 @@ defmodule TswIo.Hardware do
   def delete_input(%Input{} = input) do
     Repo.delete(input)
   end
+
+  @doc """
+  Get an input by ID.
+
+  ## Options
+
+    * `:preload` - List of associations to preload (default: [])
+  """
+  @spec get_input(integer(), keyword()) :: {:ok, Input.t()} | {:error, :not_found}
+  def get_input(id, opts \\ []) do
+    preloads = Keyword.get(opts, :preload, [])
+
+    case Repo.get(Input, id) do
+      nil -> {:error, :not_found}
+      input -> {:ok, Repo.preload(input, preloads)}
+    end
+  end
+
+  # Calibration operations
+
+  @doc """
+  Start a calibration session for an input.
+
+  ## Options
+
+    * `:max_hardware_value` - Optional. Hardware max value (default: 1023).
+
+  Returns `{:ok, pid}` on success.
+  """
+  @spec start_calibration_session(Input.t(), String.t(), keyword()) ::
+          {:ok, pid()} | {:error, term()}
+  def start_calibration_session(%Input{} = input, port, opts \\ []) do
+    session_opts =
+      Keyword.merge(opts,
+        input_id: input.id,
+        port: port,
+        pin: input.pin
+      )
+
+    SessionSupervisor.start_session(session_opts)
+  end
+
+  @doc """
+  Save calibration data for an input.
+
+  Creates or updates the calibration for the given input.
+  """
+  @spec save_calibration(integer(), map()) ::
+          {:ok, Calibration.t()} | {:error, Ecto.Changeset.t()}
+  def save_calibration(input_id, attrs) do
+    attrs_with_input = Map.put(attrs, :input_id, input_id)
+
+    case Repo.get_by(Calibration, input_id: input_id) do
+      nil ->
+        %Calibration{}
+        |> Calibration.changeset(attrs_with_input)
+        |> Repo.insert()
+
+      existing ->
+        existing
+        |> Calibration.changeset(attrs_with_input)
+        |> Repo.update()
+    end
+  end
+
+  @doc """
+  Normalize a raw input value using its calibration.
+
+  Returns the normalized value (0 to total_travel).
+  """
+  @spec normalize_value(integer(), Calibration.t()) :: integer()
+  defdelegate normalize_value(raw_value, calibration), to: Calculator, as: :normalize
+
+  @doc """
+  Get the total travel range for a calibration.
+  """
+  @spec total_travel(Calibration.t()) :: integer()
+  defdelegate total_travel(calibration), to: Calculator
 end

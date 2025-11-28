@@ -16,6 +16,7 @@ defmodule TswIo.Application do
       {Phoenix.PubSub, name: TswIo.PubSub},
       TswIo.Serial.Connection,
       TswIo.Hardware.ConfigurationManager,
+      TswIo.Hardware.Calibration.SessionSupervisor,
       # Start to serve requests, typically the last entry
       TswIoWeb.Endpoint
     ]
