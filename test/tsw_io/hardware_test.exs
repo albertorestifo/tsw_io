@@ -130,6 +130,17 @@ defmodule TswIo.HardwareTest do
       assert input.sensitivity == 7
     end
 
+    test "creates input with string keys (from form params)" do
+      {:ok, device} = Hardware.create_device(%{name: "Test Device"})
+      attrs = %{"pin" => "5", "input_type" => "analog", "sensitivity" => "7"}
+
+      assert {:ok, %Input{} = input} = Hardware.create_input(device.id, attrs)
+      assert input.device_id == device.id
+      assert input.pin == 5
+      assert input.input_type == :analog
+      assert input.sensitivity == 7
+    end
+
     test "returns error changeset with missing required fields" do
       {:ok, device} = Hardware.create_device(%{name: "Test Device"})
 

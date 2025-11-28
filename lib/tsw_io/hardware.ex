@@ -122,10 +122,8 @@ defmodule TswIo.Hardware do
   """
   @spec create_input(integer(), map()) :: {:ok, Input.t()} | {:error, Ecto.Changeset.t()}
   def create_input(device_id, attrs) do
-    attrs_with_device = Map.put(attrs, :device_id, device_id)
-
-    %Input{}
-    |> Input.changeset(attrs_with_device)
+    %Input{device_id: device_id}
+    |> Input.changeset(attrs)
     |> Repo.insert()
   end
 
