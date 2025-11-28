@@ -42,7 +42,8 @@ defmodule TswIoWeb.DeviceConfigLive do
            to_form(Input.changeset(%Input{}, %{input_type: :analog, sensitivity: 5}))
          )
          |> assign(:applying, false)
-         |> assign(:calibrating_input, nil)}
+         |> assign(:calibrating_input, nil)
+         |> assign(:calibration_session_state, nil)}
     end
   end
 
@@ -197,11 +198,10 @@ defmodule TswIoWeb.DeviceConfigLive do
   end
 
   @impl true
-  def handle_info({event, _state}, socket)
+  def handle_info({event, state}, socket)
       when event in [:session_started, :step_changed, :sample_collected] do
-    # These events are handled by the CalibrationWizard component
-    # We just need to let them through without crashing
-    {:noreply, socket}
+    # Forward session state to the CalibrationWizard component
+    {:noreply, assign(socket, :calibration_session_state, state)}
   end
 
   @impl true
@@ -292,6 +292,7 @@ defmodule TswIoWeb.DeviceConfigLive do
         id="calibration-wizard"
         input={@calibrating_input}
         port={@port}
+        session_state={@calibration_session_state}
       />
     </div>
     """
@@ -420,9 +421,8 @@ defmodule TswIoWeb.DeviceConfigLive do
                 phx-click="start_calibration"
                 phx-value-id={input.id}
                 class="btn btn-ghost btn-xs text-primary hover:bg-primary/10"
-                aria-label="Calibrate input"
               >
-                <.icon name="hero-adjustments-horizontal" class="w-4 h-4" />
+                <.icon name="hero-adjustments-horizontal" class="w-4 h-4" /> Calibrate
               </button>
               <button
                 phx-click="delete_input"

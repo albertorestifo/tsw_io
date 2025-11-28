@@ -35,6 +35,14 @@ defmodule TswIoWeb.CalibrationWizard do
   def update(%{input: input, port: port} = assigns, socket) do
     socket = assign(socket, assigns)
 
+    # Update session_state if passed from parent
+    socket =
+      if Map.has_key?(assigns, :session_state) and assigns.session_state do
+        assign(socket, :session_state, assigns.session_state)
+      else
+        socket
+      end
+
     # Start session if we don't have one yet
     if is_nil(socket.assigns.session_pid) do
       Session.subscribe(input.id)
@@ -90,7 +98,7 @@ defmodule TswIoWeb.CalibrationWizard do
     <div class="fixed inset-0 z-50 flex items-center justify-center">
       <div class="absolute inset-0 bg-black/50" phx-click="cancel" phx-target={@myself} />
       <div class="relative bg-base-100 rounded-xl shadow-xl w-full max-w-lg mx-4 p-6">
-        <.wizard_header input={@input} />
+        <.wizard_header input={@input} target={@myself} />
 
         <.loading_state :if={is_nil(@session_state)} />
 
@@ -110,6 +118,7 @@ defmodule TswIoWeb.CalibrationWizard do
   # Components
 
   attr :input, :map, required: true
+  attr :target, :any, required: true, doc: "The LiveComponent to target for events"
 
   defp wizard_header(assigns) do
     ~H"""
@@ -120,7 +129,7 @@ defmodule TswIoWeb.CalibrationWizard do
       </div>
       <button
         phx-click="cancel"
-        phx-target={@myself}
+        phx-target={@target}
         class="btn btn-ghost btn-sm btn-circle"
         aria-label="Close"
       >

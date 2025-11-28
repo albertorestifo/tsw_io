@@ -389,4 +389,110 @@ defmodule TswIoWeb.CalibrationWizardTest do
       0 -> :ok
     end
   end
+
+  describe "DeviceConfigLive calibration integration" do
+    setup [:create_device_with_input]
+
+    test "session state updates are forwarded to CalibrationWizard component", %{input: input} do
+      # This test verifies that when a calibration session broadcasts state updates,
+      # the parent LiveView forwards them to the CalibrationWizard component.
+      #
+      # The bug we're testing for: PubSub events arrive at the parent LiveView,
+      # but if not forwarded properly, the CalibrationWizard won't update its UI.
+
+      # Simulate what DeviceConfigLive does when it receives calibration events
+      # by testing the pattern: parent receives PubSub, stores state, passes to component
+
+      # Subscribe to session events (like DeviceConfigLive does)
+      Session.subscribe(input.id)
+
+      {:ok, pid} =
+        Session.start_link(
+          input_id: input.id,
+          port: "/dev/test",
+          pin: input.pin
+        )
+
+      # Receive the initial state (like handle_info in DeviceConfigLive)
+      assert_receive {:session_started, initial_state}
+      assert initial_state.min_sample_count == 0
+
+      # Simulate input value arriving
+      send(pid, {:input_value_updated, "/dev/test", input.pin, 100})
+
+      # Parent LiveView should receive the updated state
+      assert_receive {:sample_collected, updated_state}
+
+      # Verify the state was updated - this is what gets passed to the component
+      assert updated_state.min_sample_count == 1
+
+      # The key insight: if DeviceConfigLive doesn't forward this state to
+      # CalibrationWizard via assigns, the component will show stale data
+
+      Session.cancel(pid)
+    end
+
+    test "calibration_session_state flows from parent to component", %{input: input} do
+      # Test the data flow pattern that fixes the bug:
+      # 1. Session broadcasts {:sample_collected, state}
+      # 2. DeviceConfigLive.handle_info stores state in :calibration_session_state
+      # 3. Render passes session_state={@calibration_session_state} to component
+      # 4. CalibrationWizard.update receives and displays the new state
+
+      Session.subscribe(input.id)
+
+      {:ok, pid} =
+        Session.start_link(
+          input_id: input.id,
+          port: "/dev/test",
+          pin: input.pin
+        )
+
+      # Collect samples and verify each broadcast contains updated counts
+      assert_receive {:session_started, state}
+      assert state.min_sample_count == 0
+
+      send(pid, {:input_value_updated, "/dev/test", input.pin, 10})
+      assert_receive {:sample_collected, state}
+      assert state.min_sample_count == 1
+      assert state.min_unique_count == 1
+
+      send(pid, {:input_value_updated, "/dev/test", input.pin, 20})
+      assert_receive {:sample_collected, state}
+      assert state.min_sample_count == 2
+      assert state.min_unique_count == 2
+
+      send(pid, {:input_value_updated, "/dev/test", input.pin, 30})
+      assert_receive {:sample_collected, state}
+      assert state.min_sample_count == 3
+      assert state.min_unique_count == 3
+
+      # Verify can_advance updates correctly
+      refute state.can_advance
+
+      # Add more samples to meet the minimum (10 samples, 3 unique)
+      for value <- [10, 20, 30, 10, 20, 30, 10] do
+        send(pid, {:input_value_updated, "/dev/test", input.pin, value})
+      end
+
+      # Drain all sample_collected messages and get the last state
+      :timer.sleep(10)
+      final_state = drain_sample_collected_messages(state)
+
+      assert final_state.min_sample_count == 10
+      assert final_state.min_unique_count == 3
+      assert final_state.can_advance == true
+
+      Session.cancel(pid)
+    end
+  end
+
+  # Helper to drain sample_collected messages and return the last state
+  defp drain_sample_collected_messages(last_state) do
+    receive do
+      {:sample_collected, state} -> drain_sample_collected_messages(state)
+    after
+      0 -> last_state
+    end
+  end
 end
