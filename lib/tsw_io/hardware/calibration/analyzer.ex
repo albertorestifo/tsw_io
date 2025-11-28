@@ -3,54 +3,42 @@ defmodule TswIo.Hardware.Calibration.Analyzer do
   Analyzes calibration sweep data to detect input characteristics.
 
   The analyzer detects:
-  - `:inverted` - input values decrease as physical position increases
-  - `:rollover` - values wrap from max (1023) to 0 during sweep
+  - `inverted` - input values decrease as physical position increases
+  - `rollover` - values wrap from max (1023) to 0 during sweep
   """
 
-  @type characteristic :: :inverted | :rollover
+  alias TswIo.Hardware.Calibration.Analyzer.Analysis
 
   @doc """
   Analyzes sweep samples to detect input characteristics.
 
-  Returns a list of detected characteristics (may be empty).
+  Returns an Analysis struct with boolean flags for each characteristic.
 
   ## Examples
 
       # Normal input (increasing values)
       iex> analyze_sweep([10, 50, 100, 150], 1023)
-      {:ok, []}
+      {:ok, %Analysis{inverted: false, rollover: false}}
 
       # Inverted input (decreasing values)
       iex> analyze_sweep([150, 100, 50, 10], 1023)
-      {:ok, [:inverted]}
+      {:ok, %Analysis{inverted: true, rollover: false}}
 
       # Rollover detected
       iex> analyze_sweep([1020, 1022, 1023, 0, 5, 10], 1023)
-      {:ok, [:rollover]}
+      {:ok, %Analysis{inverted: false, rollover: true}}
   """
-  @spec analyze_sweep([integer()], integer()) :: {:ok, [characteristic()]}
+  @spec analyze_sweep([integer()], integer()) :: {:ok, Analysis.t()}
   def analyze_sweep(sweep_samples, _max_hardware_value) when length(sweep_samples) < 2 do
-    {:ok, []}
+    {:ok, %Analysis{inverted: false, rollover: false}}
   end
 
   def analyze_sweep(sweep_samples, max_hardware_value) do
-    characteristics = []
-
-    characteristics =
-      if inverted?(sweep_samples) do
-        [:inverted | characteristics]
-      else
-        characteristics
-      end
-
-    characteristics =
-      if rollover?(sweep_samples, max_hardware_value) do
-        [:rollover | characteristics]
-      else
-        characteristics
-      end
-
-    {:ok, Enum.reverse(characteristics)}
+    {:ok,
+     %Analysis{
+       inverted: inverted?(sweep_samples),
+       rollover: rollover?(sweep_samples, max_hardware_value)
+     }}
   end
 
   @doc """
@@ -58,18 +46,16 @@ defmodule TswIo.Hardware.Calibration.Analyzer do
 
   For inverted inputs, returns the inverted value (max_hardware - median)
   so that Calculator can apply the same inversion to raw values.
-  The `characteristics` list should come from `analyze_sweep/2`.
   """
-  @spec calculate_min([integer()], [characteristic()], integer()) :: integer()
-  def calculate_min(min_samples, characteristics, max_hardware_value \\ 1023) do
-    median_value = median(min_samples)
+  @spec calculate_min([integer()], Analysis.t(), integer()) :: integer()
+  def calculate_min(min_samples, analysis, max_hardware_value \\ 1023)
 
-    if :inverted in characteristics do
-      # For inverted: store the inverted value so Calculator math works
-      max_hardware_value - median_value
-    else
-      median_value
-    end
+  def calculate_min(min_samples, %Analysis{inverted: true}, max_hardware_value) do
+    max_hardware_value - median(min_samples)
+  end
+
+  def calculate_min(min_samples, %Analysis{inverted: false}, _max_hardware_value) do
+    median(min_samples)
   end
 
   @doc """
@@ -77,27 +63,20 @@ defmodule TswIo.Hardware.Calibration.Analyzer do
 
   For inverted inputs, returns the inverted value.
   For rollover inputs, accounts for the wrap-around.
-  The `characteristics` list should come from `analyze_sweep/2`.
   """
-  @spec calculate_max([integer()], [integer()], [characteristic()], integer()) :: integer()
-  def calculate_max(max_samples, min_samples, characteristics, max_hardware_value) do
+  @spec calculate_max([integer()], [integer()], Analysis.t(), integer()) :: integer()
+  def calculate_max(max_samples, min_samples, %Analysis{} = analysis, max_hardware_value) do
     max_median = median(max_samples)
     min_median = median(min_samples)
 
-    is_inverted = :inverted in characteristics
-    has_rollover = :rollover in characteristics
-
-    # First, get the raw values in the inverted space if needed
     {effective_min, effective_max} =
-      if is_inverted do
+      if analysis.inverted do
         {max_hardware_value - min_median, max_hardware_value - max_median}
       else
         {min_median, max_median}
       end
 
-    # Then account for rollover
-    if has_rollover do
-      # With rollover, the max wraps around
+    if analysis.rollover do
       effective_max + (max_hardware_value - effective_min + 1)
     else
       effective_max

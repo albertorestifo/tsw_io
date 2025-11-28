@@ -268,19 +268,19 @@ defmodule TswIo.Hardware.Calibration.Session do
     sweep_samples = Enum.reverse(state.sweep_samples)
     max_samples = Enum.reverse(state.max_samples)
 
-    {:ok, characteristics} = Analyzer.analyze_sweep(sweep_samples, state.max_hardware_value)
+    {:ok, analysis} = Analyzer.analyze_sweep(sweep_samples, state.max_hardware_value)
 
-    min_value = Analyzer.calculate_min(min_samples, characteristics, state.max_hardware_value)
+    min_value = Analyzer.calculate_min(min_samples, analysis, state.max_hardware_value)
 
     max_value =
-      Analyzer.calculate_max(max_samples, min_samples, characteristics, state.max_hardware_value)
+      Analyzer.calculate_max(max_samples, min_samples, analysis, state.max_hardware_value)
 
     attrs = %{
       min_value: min_value,
       max_value: max_value,
       max_hardware_value: state.max_hardware_value,
-      is_inverted: :inverted in characteristics,
-      has_rollover: :rollover in characteristics
+      is_inverted: analysis.inverted,
+      has_rollover: analysis.rollover
     }
 
     Hardware.save_calibration(state.input_id, attrs)
