@@ -18,6 +18,7 @@ defmodule TswIoWeb.Router do
     pipe_through :browser
 
     live "/", DeviceLive
+    live "/devices/:port/config", DeviceConfigLive
   end
 
   # Other scopes may use custom stacks.

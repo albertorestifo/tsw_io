@@ -116,26 +116,26 @@ defmodule TswIo.Serial.ProtocolTest do
         config_id: 0x12345678,
         total_parts: 0x05,
         part_number: 0x02,
-        input_type: 0x01,
+        input_type: :analog,
         pin: 0x0A,
         sensitivity: 0x64
       }
 
       {:ok, encoded} = Configure.encode(configure)
 
-      # Type (0x02) + config_id (little endian) + total_parts + part_number + input_type + pin + sensitivity
-      assert encoded == <<0x02, 0x78, 0x56, 0x34, 0x12, 0x05, 0x02, 0x01, 0x0A, 0x64>>
+      # Type (0x02) + config_id (little endian) + total_parts + part_number + input_type (0x00 = analog) + pin + sensitivity
+      assert encoded == <<0x02, 0x78, 0x56, 0x34, 0x12, 0x05, 0x02, 0x00, 0x0A, 0x64>>
     end
 
     test "decode decodes valid message" do
-      binary = <<0x02, 0x78, 0x56, 0x34, 0x12, 0x05, 0x02, 0x01, 0x0A, 0x64>>
+      binary = <<0x02, 0x78, 0x56, 0x34, 0x12, 0x05, 0x02, 0x00, 0x0A, 0x64>>
       {:ok, decoded} = Configure.decode(binary)
 
       assert decoded == %Configure{
                config_id: 0x12345678,
                total_parts: 0x05,
                part_number: 0x02,
-               input_type: 0x01,
+               input_type: :analog,
                pin: 0x0A,
                sensitivity: 0x64
              }
@@ -155,7 +155,7 @@ defmodule TswIo.Serial.ProtocolTest do
         config_id: 0x12345678,
         total_parts: 0x05,
         part_number: 0x02,
-        input_type: 0x01,
+        input_type: :analog,
         pin: 0x0A,
         sensitivity: 0x64
       }
@@ -363,14 +363,14 @@ defmodule TswIo.Serial.ProtocolTest do
     end
 
     test "decodes Configure" do
-      binary = <<0x02, 0x78, 0x56, 0x34, 0x12, 0x05, 0x02, 0x01, 0x0A, 0x64>>
+      binary = <<0x02, 0x78, 0x56, 0x34, 0x12, 0x05, 0x02, 0x00, 0x0A, 0x64>>
       {:ok, decoded} = Message.decode(binary)
 
       assert decoded == %Configure{
                config_id: 0x12345678,
                total_parts: 0x05,
                part_number: 0x02,
-               input_type: 0x01,
+               input_type: :analog,
                pin: 0x0A,
                sensitivity: 0x64
              }
@@ -438,7 +438,7 @@ defmodule TswIo.Serial.ProtocolTest do
           config_id: 0x12345678,
           total_parts: 0x05,
           part_number: 0x02,
-          input_type: 0x01,
+          input_type: :analog,
           pin: 0x0A,
           sensitivity: 0x64
         },

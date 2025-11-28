@@ -33,6 +33,7 @@ defmodule TswIo.Serial.Connection do
   ]
 
   @pubsub_topic "device_updates"
+  @serial_messages_topic "serial:messages"
 
   def start_link(_opts) do
     GenServer.start_link(__MODULE__, %State{}, name: __MODULE__)
@@ -68,6 +69,23 @@ defmodule TswIo.Serial.Connection do
     Phoenix.PubSub.subscribe(TswIo.PubSub, @pubsub_topic)
   end
 
+  @doc "Subscribe to serial messages from a specific port"
+  @spec subscribe_messages(String.t()) :: :ok | {:error, term()}
+  def subscribe_messages(port) do
+    Phoenix.PubSub.subscribe(TswIo.PubSub, "#{@serial_messages_topic}:#{port}")
+  end
+
+  @doc """
+  Send a message to a device on the specified port.
+
+  The message must implement the Message behaviour and will be encoded
+  before sending over the serial connection.
+  """
+  @spec send_message(String.t(), Message.t()) :: :ok | {:error, term()}
+  def send_message(port, message) do
+    GenServer.call(__MODULE__, {:send_message, port, message})
+  end
+
   # Server callbacks
 
   @impl true
@@ -84,6 +102,30 @@ defmodule TswIo.Serial.Connection do
   @impl true
   def handle_call(:list_devices, _from, %State{ports: ports} = state) do
     {:reply, Map.values(ports), state}
+  end
+
+  @impl true
+  def handle_call({:send_message, port, message}, _from, state) do
+    case State.get(state, port) do
+      %DeviceConnection{status: :connected, pid: pid} ->
+        # Get the module that implements the Message behaviour for encoding
+        module = message.__struct__
+
+        case module.encode(message) do
+          {:ok, encoded} ->
+            result = UART.write(pid, encoded)
+            {:reply, result, state}
+
+          {:error, reason} ->
+            {:reply, {:error, {:encode_failed, reason}}, state}
+        end
+
+      %DeviceConnection{status: status} ->
+        {:reply, {:error, {:not_connected, status}}, state}
+
+      nil ->
+        {:reply, {:error, :unknown_port}, state}
+    end
   end
 
   @impl true
@@ -159,6 +201,7 @@ defmodule TswIo.Serial.Connection do
     case Message.decode(data) do
       {:ok, message} ->
         Logger.debug("Received message from port #{port}: #{inspect(message)}")
+        broadcast_message(port, message)
 
       {:error, reason} ->
         Logger.warning("Failed to decode message from port #{port}: #{inspect(reason)}")
@@ -224,6 +267,14 @@ defmodule TswIo.Serial.Connection do
   defp broadcast_update(state) do
     devices = Map.values(state.ports)
     Phoenix.PubSub.broadcast(TswIo.PubSub, @pubsub_topic, {:devices_updated, devices})
+  end
+
+  defp broadcast_message(port, message) do
+    Phoenix.PubSub.broadcast(
+      TswIo.PubSub,
+      "#{@serial_messages_topic}:#{port}",
+      {:serial_message, port, message}
+    )
   end
 
   defp discover_new_ports(state) do

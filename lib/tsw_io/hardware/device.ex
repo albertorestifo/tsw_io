@@ -6,6 +6,7 @@ defmodule TswIo.Hardware.Device do
 
   schema "devices" do
     field :name, :string
+    field :config_id, :integer
 
     has_many :inputs, Input
 
@@ -13,9 +14,10 @@ defmodule TswIo.Hardware.Device do
   end
 
   @doc false
-  def changeset(config, attrs) do
-    config
-    |> cast(attrs, [:name])
+  def changeset(device, attrs) do
+    device
+    |> cast(attrs, [:name, :config_id])
     |> validate_required([:name])
+    |> unique_constraint(:config_id)
   end
 end

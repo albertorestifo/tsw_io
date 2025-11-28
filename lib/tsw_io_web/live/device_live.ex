@@ -246,9 +246,12 @@ defmodule TswIoWeb.DeviceLive do
       <p class="mt-2 text-sm text-base-content/70 max-w-sm">
         This device hasn't been configured yet. Set up inputs and outputs to start using it.
       </p>
-      <button class="btn btn-primary mt-6">
+      <.link
+        navigate={~p"/devices/#{URI.encode_www_form(@device.port)}/config"}
+        class="btn btn-primary mt-6"
+      >
         <.icon name="hero-plus" class="w-4 h-4" /> Create Configuration
-      </button>
+      </.link>
     </div>
     """
   end
@@ -258,12 +261,18 @@ defmodule TswIoWeb.DeviceLive do
   defp known_config_state(assigns) do
     ~H"""
     <div class="bg-base-200/50 rounded-xl p-6">
-      <p class="text-sm text-base-content/70">
-        Configuration ID: <span class="font-mono">{@device.device_config_id}</span>
-      </p>
-      <p class="text-sm text-base-content/50 mt-2">
-        Configuration management coming soon...
-      </p>
+      <div class="flex items-center justify-between">
+        <p class="text-sm text-base-content/70">
+          Configuration ID: <span class="font-mono">{@device.device_config_id}</span>
+        </p>
+        <.link
+          navigate={~p"/devices/#{URI.encode_www_form(@device.port)}/config"}
+          class="btn btn-outline btn-sm"
+        >
+          <.icon name="hero-cog-6-tooth" class="w-4 h-4" />
+          Manage Configuration
+        </.link>
+      </div>
     </div>
     """
   end

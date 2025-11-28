@@ -21,6 +21,8 @@ defmodule TswIo.Hardware.Input do
     input
     |> cast(attrs, [:pin, :input_type, :sensitivity, :device_id])
     |> validate_required([:pin, :input_type, :sensitivity, :device_id])
+    |> validate_number(:pin, greater_than: 0, less_than: 255)
     |> validate_number(:sensitivity, greater_than: 0, less_than_or_equal_to: 10)
+    |> unique_constraint([:device_id, :pin])
   end
 end

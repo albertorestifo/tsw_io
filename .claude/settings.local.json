@@ -8,7 +8,9 @@
       "Bash(mise exec:*)",
       "Bash(mix test:*)",
       "Bash(cat:*)",
-      "Bash(mise current:*)"
+      "Bash(mise current:*)",
+      "Bash(mix ecto.gen.migration:*)",
+      "Bash(mix ecto.migrate:*)"
     ],
     "deny": [],
     "ask": []
