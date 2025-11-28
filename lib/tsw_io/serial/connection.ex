@@ -19,8 +19,8 @@ defmodule TswIo.Serial.Connection do
 
   # Retry failed ports after 30 seconds
   @failed_port_backoff_ms 30_000
-  # Run discovery every second
-  @discovery_interval_ms 1_000
+  # Run discovery every minute
+  @discovery_interval_ms 60_000
   # Timeout for cleanup operations (failsafe if task crashes)
   @cleanup_timeout_ms 5_000
   # Timeout for discovery operations
@@ -90,7 +90,8 @@ defmodule TswIo.Serial.Connection do
 
   @impl true
   def init(%State{} = state) do
-    schedule_discovery()
+    # Start with a quick discovery to get things going
+    schedule_discovery(1_000)
     {:ok, state}
   end
 
@@ -200,7 +201,7 @@ defmodule TswIo.Serial.Connection do
   def handle_info({:circuits_uart, port, data}, state) do
     case Message.decode(data) do
       {:ok, message} ->
-        Logger.debug("Received message from port #{port}: #{inspect(message)}")
+        # Logger.debug("Received message from port #{port}: #{inspect(message)}")
         broadcast_message(port, message)
 
       {:error, reason} ->
@@ -260,8 +261,8 @@ defmodule TswIo.Serial.Connection do
     end
   end
 
-  defp schedule_discovery do
-    Process.send_after(self(), :discover, @discovery_interval_ms)
+  defp schedule_discovery(interval_ms \\ @discovery_interval_ms) do
+    Process.send_after(self(), :discover, interval_ms)
   end
 
   defp broadcast_update(state) do
