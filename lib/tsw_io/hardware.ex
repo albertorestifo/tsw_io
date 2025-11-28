@@ -132,7 +132,8 @@ defmodule TswIo.Hardware do
   @doc """
   Delete an input by ID or Input struct.
   """
-  @spec delete_input(integer() | Input.t()) :: {:ok, Input.t()} | {:error, :not_found | Ecto.Changeset.t()}
+  @spec delete_input(integer() | Input.t()) ::
+          {:ok, Input.t()} | {:error, :not_found | Ecto.Changeset.t()}
   def delete_input(input_id) when is_integer(input_id) do
     case Repo.get(Input, input_id) do
       nil -> {:error, :not_found}

@@ -269,8 +269,7 @@ defmodule TswIoWeb.DeviceLive do
           navigate={~p"/devices/#{URI.encode_www_form(@device.port)}/config"}
           class="btn btn-outline btn-sm"
         >
-          <.icon name="hero-cog-6-tooth" class="w-4 h-4" />
-          Manage Configuration
+          <.icon name="hero-cog-6-tooth" class="w-4 h-4" /> Manage Configuration
         </.link>
       </div>
     </div>

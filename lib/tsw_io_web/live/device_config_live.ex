@@ -36,7 +36,10 @@ defmodule TswIoWeb.DeviceConfigLive do
          |> assign(:input_values, input_values)
          |> assign(:draft_mode, draft_mode)
          |> assign(:modal_open, false)
-         |> assign(:form, to_form(Input.changeset(%Input{}, %{input_type: :analog, sensitivity: 5})))
+         |> assign(
+           :form,
+           to_form(Input.changeset(%Input{}, %{input_type: :analog, sensitivity: 5}))
+         )
          |> assign(:applying, false)}
     end
   end
@@ -101,7 +104,10 @@ defmodule TswIoWeb.DeviceConfigLive do
          socket
          |> assign(:inputs, inputs)
          |> assign(:modal_open, false)
-         |> assign(:form, to_form(Input.changeset(%Input{}, %{input_type: :analog, sensitivity: 5})))}
+         |> assign(
+           :form,
+           to_form(Input.changeset(%Input{}, %{input_type: :analog, sensitivity: 5}))
+         )}
 
       {:error, changeset} ->
         {:noreply, assign(socket, :form, to_form(changeset))}
@@ -270,12 +276,10 @@ defmodule TswIoWeb.DeviceConfigLive do
   defp status_badge(assigns) do
     ~H"""
     <span :if={@draft_mode} class="badge badge-warning badge-sm gap-1">
-      <.icon name="hero-pencil-square" class="w-3 h-3" />
-      Draft
+      <.icon name="hero-pencil-square" class="w-3 h-3" /> Draft
     </span>
     <span :if={!@draft_mode} class="badge badge-success badge-sm gap-1">
-      <.icon name="hero-check-circle" class="w-3 h-3" />
-      Active
+      <.icon name="hero-check-circle" class="w-3 h-3" /> Active
     </span>
     """
   end
@@ -302,8 +306,7 @@ defmodule TswIoWeb.DeviceConfigLive do
         phx-click="open_add_input_modal"
         class="btn btn-outline btn-sm mt-4"
       >
-        <.icon name="hero-plus" class="w-4 h-4" />
-        Add Input
+        <.icon name="hero-plus" class="w-4 h-4" /> Add Input
       </button>
     </div>
     """
@@ -372,8 +375,7 @@ defmodule TswIoWeb.DeviceConfigLive do
   defp input_value(assigns) do
     ~H"""
     <span :if={@draft_mode} class="text-base-content/50 italic text-sm">
-      <.icon name="hero-lock-closed" class="w-3 h-3 inline mr-1" />
-      N/A
+      <.icon name="hero-lock-closed" class="w-3 h-3 inline mr-1" /> N/A
     </span>
     <span :if={!@draft_mode && is_nil(@value)} class="text-base-content/50">
       &mdash;
