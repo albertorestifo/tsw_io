@@ -331,7 +331,8 @@ defmodule TswIoWeb.TrainEditLive do
             {:noreply, put_flash(socket, :error, "Calibration already in progress")}
 
           {:error, reason} ->
-            {:noreply, put_flash(socket, :error, "Failed to start calibration: #{inspect(reason)}")}
+            {:noreply,
+             put_flash(socket, :error, "Failed to start calibration: #{inspect(reason)}")}
         end
     end
   end
@@ -473,7 +474,10 @@ defmodule TswIoWeb.TrainEditLive do
      |> assign(:auto_detecting, false)
      |> assign(:calibration_progress, nil)
      |> assign(:mapping_notches_element, %{element | lever_config: config_with_notches})
-     |> put_flash(:info, "Calibration complete! Detected #{length(config_with_notches.notches)} notches")}
+     |> put_flash(
+       :info,
+       "Calibration complete! Detected #{length(config_with_notches.notches)} notches"
+     )}
   end
 
   @impl true

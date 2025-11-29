@@ -34,8 +34,14 @@ defmodule TswIo.Train.Calibration.LeverSession do
   alias TswIo.Train.Notch
   alias TswIo.Train
 
+  # Step size for calibration sweep (0.01 = 1% of range per step)
   @step 0.01
+
+  # Tolerance for detecting gate vs linear notches.
+  # Values differing by more than this threshold indicate a gate notch.
   @tolerance 0.001
+
+  # Delay between calibration steps (ms) to avoid overwhelming the simulator
   @step_delay_ms 10
 
   defmodule State do
@@ -53,9 +59,11 @@ defmodule TswIo.Train.Calibration.LeverSession do
             current_notch_index: integer(),
             current_notch_start: float(),
             current_notch_type: :gate | :linear | nil,
+            current_gate_value: float() | nil,
             notches: [Notch.t()],
             progress: float(),
-            error: term() | nil
+            error: term() | nil,
+            calibration_skipped: boolean()
           }
 
     defstruct [
@@ -64,13 +72,15 @@ defmodule TswIo.Train.Calibration.LeverSession do
       :min_value,
       :max_value,
       :error,
+      :current_gate_value,
       step: :initializing,
       current_value: 0.0,
       current_notch_index: 0,
       current_notch_start: 0.0,
       current_notch_type: nil,
       notches: [],
-      progress: 0.0
+      progress: 0.0,
+      calibration_skipped: false
     ]
   end
 
@@ -144,13 +154,20 @@ defmodule TswIo.Train.Calibration.LeverSession do
     case initialize_calibration(state) do
       {:ok, new_state} ->
         broadcast_progress(new_state)
-        send(self(), :calibrate_step)
+
+        # For single notch, step is already :saving, skip calibration
+        if new_state.step == :saving do
+          send(self(), :save)
+        else
+          send(self(), :calibrate_step)
+        end
+
         {:noreply, new_state}
 
       {:error, reason} ->
         new_state = %{state | step: :error, error: reason}
         broadcast_result(new_state, {:error, reason})
-        {:stop, :normal, new_state}
+        {:stop, {:shutdown, reason}, new_state}
     end
   end
 
@@ -170,15 +187,21 @@ defmodule TswIo.Train.Calibration.LeverSession do
       {:error, reason, new_state} ->
         error_state = %{new_state | step: :error, error: reason}
         broadcast_result(error_state, {:error, reason})
-        {:stop, :normal, error_state}
+        {:stop, {:shutdown, reason}, error_state}
     end
   end
 
   def handle_info(:save, state) do
     Logger.info("Saving calibration for lever config #{state.lever_config.id}")
 
-    # Finalize the last notch
-    final_notches = finalize_notches(state)
+    # Finalize notches - for single notch case, notches are already complete
+    # For multi-notch, we need to add the final notch
+    final_notches =
+      if state.calibration_skipped do
+        state.notches
+      else
+        finalize_notches(state)
+      end
 
     # Convert Notch structs to attribute maps for saving
     notch_attrs =
@@ -202,7 +225,7 @@ defmodule TswIo.Train.Calibration.LeverSession do
       {:error, reason} ->
         error_state = %{state | step: :error, error: reason}
         broadcast_result(error_state, {:error, reason})
-        {:stop, :normal, error_state}
+        {:stop, {:shutdown, reason}, error_state}
     end
   end
 
@@ -232,7 +255,7 @@ defmodule TswIo.Train.Calibration.LeverSession do
           value: nil,
           min_value: min_value,
           max_value: max_value,
-          description: nil
+          description: "Notch 0"
         }
 
         {:ok,
@@ -242,7 +265,8 @@ defmodule TswIo.Train.Calibration.LeverSession do
              min_value: min_value,
              max_value: max_value,
              notches: [single_notch],
-             progress: 1.0
+             progress: 1.0,
+             calibration_skipped: true
          }}
       else
         # Set initial value and get starting notch index
@@ -266,8 +290,8 @@ defmodule TswIo.Train.Calibration.LeverSession do
   defp calibrate_step(state) do
     next_value = state.current_value + @step
 
-    # Check if we've reached the end
-    if next_value > state.max_value do
+    # Check if we've reached the end (use tolerance for float comparison)
+    if next_value >= state.max_value - @tolerance do
       {:done, state}
     else
       do_calibrate_step(state, next_value)
@@ -280,9 +304,6 @@ defmodule TswIo.Train.Calibration.LeverSession do
     with {:ok, _} <- Client.set(client, config.value_endpoint, next_value),
          {:ok, read_value} <- Client.get_float(client, config.value_endpoint),
          {:ok, notch_index} <- Client.get_int(client, config.notch_index_endpoint) do
-      # Detect notch type based on value behavior
-      notch_type = detect_notch_type(next_value, read_value)
-
       # Calculate progress
       progress = (next_value - state.min_value) / (state.max_value - state.min_value)
 
@@ -292,8 +313,8 @@ defmodule TswIo.Train.Calibration.LeverSession do
           # Notch changed - record the previous notch and start a new one
           record_notch_and_start_new(state, next_value, notch_index)
         else
-          # Same notch - update type if we detect it
-          update_notch_type(state, notch_type)
+          # Same notch - update type based on value behavior
+          update_notch_type(state, next_value, read_value)
         end
 
       {:continue, %{new_state | current_value: next_value, progress: progress}}
@@ -303,57 +324,59 @@ defmodule TswIo.Train.Calibration.LeverSession do
     end
   end
 
-  defp detect_notch_type(set_value, read_value) do
-    if abs(set_value - read_value) < @tolerance do
-      # Value was accepted as-is → linear notch
-      :linear
-    else
-      # Value was snapped to a different position → gate notch
-      :gate
-    end
-  end
-
   defp record_notch_and_start_new(state, boundary_value, new_notch_index) do
     # Build the completed notch
     notch = build_notch_from_state(state, boundary_value)
 
+    # Prepend to list (O(1)) - will be reversed when finalizing
     %{
       state
       | current_notch_index: new_notch_index,
         current_notch_start: boundary_value,
         current_notch_type: nil,
-        notches: state.notches ++ [notch]
+        current_gate_value: nil,
+        notches: [notch | state.notches]
     }
   end
 
-  defp update_notch_type(state, detected_type) do
-    # If we haven't determined the type yet, or if we detect linear (takes precedence),
-    # update the type
-    new_type =
-      case {state.current_notch_type, detected_type} do
-        {nil, type} -> type
-        {_, :linear} -> :linear
-        {existing, _} -> existing
-      end
+  defp update_notch_type(state, set_value, read_value) do
+    is_gate = abs(set_value - read_value) >= @tolerance
 
-    %{state | current_notch_type: new_type}
+    cond do
+      # If gate detected (value snapped), the notch is a gate - takes precedence
+      # Capture the read_value as the gate position
+      is_gate ->
+        %{state | current_notch_type: :gate, current_gate_value: read_value}
+
+      # Linear detected (value accepted as-is)
+      # Only set linear if we haven't already detected gate behavior
+      state.current_notch_type != :gate ->
+        %{state | current_notch_type: :linear}
+
+      # Already determined to be gate, don't change
+      true ->
+        state
+    end
   end
 
   defp build_notch_from_state(state, end_value) do
-    index = length(state.notches)
+    # Use the current notch index from state (this is the notch being finalized)
+    index = state.current_notch_index
+    description = "Notch #{index}"
 
     case state.current_notch_type || :gate do
       :gate ->
-        # Gate notch - use the midpoint as the value
-        midpoint = (state.current_notch_start + end_value) / 2
+        # Gate notch - use the actual value returned by the simulator
+        # Fall back to start value if we somehow don't have a gate value
+        gate_value = state.current_gate_value || state.current_notch_start
 
         %Notch{
           index: index,
           type: :gate,
-          value: midpoint,
+          value: gate_value,
           min_value: nil,
           max_value: nil,
-          description: nil
+          description: description
         }
 
       :linear ->
@@ -363,15 +386,15 @@ defmodule TswIo.Train.Calibration.LeverSession do
           value: nil,
           min_value: state.current_notch_start,
           max_value: end_value,
-          description: nil
+          description: description
         }
     end
   end
 
   defp finalize_notches(state) do
-    # Build the final notch
+    # Build the final notch and reverse the list (notches were prepended)
     final_notch = build_notch_from_state(state, state.max_value)
-    state.notches ++ [final_notch]
+    Enum.reverse([final_notch | state.notches])
   end
 
   defp broadcast_progress(state) do

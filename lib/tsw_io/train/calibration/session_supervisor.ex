@@ -50,8 +50,11 @@ defmodule TswIo.Train.Calibration.SessionSupervisor do
         {:error, :not_found}
 
       pid ->
-        DynamicSupervisor.terminate_child(__MODULE__, pid)
-        :ok
+        # Handle race condition where process terminates between check and terminate
+        case DynamicSupervisor.terminate_child(__MODULE__, pid) do
+          :ok -> :ok
+          {:error, :not_found} -> :ok
+        end
     end
   end
 
