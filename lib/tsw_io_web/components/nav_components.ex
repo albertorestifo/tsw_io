@@ -21,8 +21,8 @@ defmodule TswIoWeb.NavComponents do
 
   def nav_header(assigns) do
     ~H"""
-    <header class="bg-base-100 border-b border-base-300 sticky top-0 z-50">
-      <div class="max-w-2xl mx-auto px-4 sm:px-8 py-3 flex items-center">
+    <header class="bg-base-100 border-b border-base-300 sticky top-0 z-50 px-4 sm:px-8">
+      <div class="max-w-2xl mx-auto py-3 flex items-center">
         <div class="flex-1">
           <.link navigate={~p"/"} class="text-lg font-semibold">TWS IO</.link>
         </div>
@@ -82,8 +82,8 @@ defmodule TswIoWeb.NavComponents do
 
   def breadcrumb(assigns) do
     ~H"""
-    <nav :if={length(@items) > 1} class="bg-base-200/50 border-b border-base-300">
-      <div class="max-w-2xl mx-auto px-4 sm:px-8 py-2">
+    <nav :if={length(@items) > 1} class="bg-base-200/50 border-b border-base-300 px-4 sm:px-8">
+      <div class="max-w-2xl mx-auto py-2">
         <ol class="flex items-center gap-2 text-sm">
           <li :for={{item, index} <- Enum.with_index(@items)} class="flex items-center gap-2">
             <.icon
