@@ -22,6 +22,8 @@ defmodule TswIoWeb.ConfigurationListLive do
       |> assign(:configurations, configurations)
       |> assign(:show_apply_modal, false)
       |> assign(:apply_config, nil)
+      |> assign(:show_delete_modal, false)
+      |> assign(:delete_config, nil)
 
     {:ok, socket}
   end
@@ -95,6 +97,56 @@ defmodule TswIoWeb.ConfigurationListLive do
   end
 
   @impl true
+  def handle_event("show_delete_modal", %{"config-id" => config_id_str}, socket) do
+    {config_id, _} = Integer.parse(config_id_str)
+    config = Enum.find(socket.assigns.configurations, &(&1.config_id == config_id))
+
+    {:noreply,
+     socket
+     |> assign(:show_delete_modal, true)
+     |> assign(:delete_config, config)}
+  end
+
+  @impl true
+  def handle_event("close_delete_modal", _, socket) do
+    {:noreply,
+     socket
+     |> assign(:show_delete_modal, false)
+     |> assign(:delete_config, nil)}
+  end
+
+  @impl true
+  def handle_event("confirm_delete", _, socket) do
+    config = socket.assigns.delete_config
+
+    case Hardware.delete_device(config) do
+      {:ok, _} ->
+        configurations = Hardware.list_configurations(preload: [:inputs])
+
+        {:noreply,
+         socket
+         |> put_flash(:info, "Configuration \"#{config.name}\" deleted")
+         |> assign(:configurations, configurations)
+         |> assign(:show_delete_modal, false)
+         |> assign(:delete_config, nil)}
+
+      {:error, :configuration_active} ->
+        {:noreply,
+         socket
+         |> put_flash(:error, "Cannot delete: configuration is active on a connected device")
+         |> assign(:show_delete_modal, false)
+         |> assign(:delete_config, nil)}
+
+      {:error, reason} ->
+        {:noreply,
+         socket
+         |> put_flash(:error, "Failed to delete: #{inspect(reason)}")
+         |> assign(:show_delete_modal, false)
+         |> assign(:delete_config, nil)}
+    end
+  end
+
+  @impl true
   def render(assigns) do
     connected_devices = Enum.filter(assigns.nav_devices, &(&1.status == :connected))
     active_config_ids = MapSet.new(connected_devices, & &1.device_config_id)
@@ -144,6 +196,12 @@ defmodule TswIoWeb.ConfigurationListLive do
         :if={@show_apply_modal}
         config={@apply_config}
         connected_devices={@connected_devices}
+      />
+
+      <.delete_modal
+        :if={@show_delete_modal}
+        config={@delete_config}
+        active={MapSet.member?(@active_config_ids, @delete_config.config_id)}
       />
     </div>
     """
@@ -200,7 +258,7 @@ defmodule TswIoWeb.ConfigurationListLive do
           </div>
         </div>
 
-        <div class="flex items-center gap-2 flex-shrink-0">
+        <div class="flex items-center gap-1 flex-shrink-0">
           <button
             :if={not @active and not Enum.empty?(@connected_devices)}
             type="button"
@@ -216,6 +274,16 @@ defmodule TswIoWeb.ConfigurationListLive do
           >
             <.icon name="hero-pencil" class="w-4 h-4" />
           </.link>
+          <button
+            type="button"
+            phx-click="show_delete_modal"
+            phx-value-config-id={@config.config_id}
+            class="btn btn-ghost btn-sm text-error hover:bg-error/10"
+            disabled={@active}
+            aria-label="Delete configuration"
+          >
+            <.icon name="hero-trash" class="w-4 h-4" />
+          </button>
         </div>
       </div>
     </div>
@@ -256,6 +324,44 @@ defmodule TswIoWeb.ConfigurationListLive do
         <div class="mt-6 flex justify-end">
           <button type="button" phx-click="close_apply_modal" class="btn btn-ghost">
             Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+    """
+  end
+
+  attr :config, :map, required: true
+  attr :active, :boolean, required: true
+
+  defp delete_modal(assigns) do
+    ~H"""
+    <div class="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div class="fixed inset-0 bg-black/50" phx-click="close_delete_modal" />
+      <div class="relative bg-base-100 rounded-xl shadow-xl max-w-md w-full p-6">
+        <h3 class="text-lg font-semibold mb-4 text-error">Delete Configuration</h3>
+
+        <div :if={@active} class="alert alert-warning mb-4">
+          <.icon name="hero-exclamation-triangle" class="w-5 h-5" />
+          <span class="text-sm">This configuration is currently active on a connected device.</span>
+        </div>
+
+        <p class="text-sm text-base-content/70 mb-6">
+          Are you sure you want to delete "<span class="font-medium">{@config.name}</span>"?
+          This will permanently delete the configuration and all its inputs and calibration data.
+        </p>
+
+        <div class="flex justify-end gap-2">
+          <button type="button" phx-click="close_delete_modal" class="btn btn-ghost">
+            Cancel
+          </button>
+          <button
+            :if={not @active}
+            type="button"
+            phx-click="confirm_delete"
+            class="btn btn-error"
+          >
+            <.icon name="hero-trash" class="w-4 h-4" /> Delete
           </button>
         </div>
       </div>

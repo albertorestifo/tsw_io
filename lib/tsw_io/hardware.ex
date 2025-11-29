@@ -101,6 +101,53 @@ defmodule TswIo.Hardware do
   end
 
   @doc """
+  Delete a device configuration.
+
+  This will cascade delete all associated inputs and calibrations.
+  Returns an error if the configuration is currently active on any connected device.
+
+  ## Examples
+
+      iex> delete_device(device)
+      {:ok, %Device{}}
+
+      iex> delete_device(device)  # when active on a device
+      {:error, :configuration_active}
+
+  """
+  @spec delete_device(Device.t()) ::
+          {:ok, Device.t()} | {:error, :configuration_active | Ecto.Changeset.t()}
+  def delete_device(%Device{} = device) do
+    if configuration_active?(device.config_id) do
+      {:error, :configuration_active}
+    else
+      # Delete inputs and their calibrations first (cascade)
+      {:ok, inputs} = list_inputs(device.id)
+
+      Enum.each(inputs, fn input ->
+        # Delete calibration if exists
+        if calibration = Repo.get_by(Calibration, input_id: input.id) do
+          Repo.delete(calibration)
+        end
+
+        Repo.delete(input)
+      end)
+
+      # Delete the device
+      Repo.delete(device)
+    end
+  end
+
+  defp configuration_active?(config_id) when is_nil(config_id), do: false
+
+  defp configuration_active?(config_id) do
+    TswIo.Serial.Connection.list_devices()
+    |> Enum.any?(fn device ->
+      device.status == :connected and device.device_config_id == config_id
+    end)
+  end
+
+  @doc """
   Update device with config_id after successful configuration.
 
   This is called by the ConfigurationManager when a ConfigurationStored

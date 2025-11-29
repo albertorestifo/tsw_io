@@ -12,9 +12,7 @@ defmodule TswIo.Repo.Migrations.PopulateMissingConfigIds do
     for [id] <- rows do
       config_id = generate_unique_config_id()
 
-      execute(
-        "UPDATE devices SET config_id = #{config_id} WHERE id = #{id}"
-      )
+      execute("UPDATE devices SET config_id = #{config_id} WHERE id = #{id}")
     end
   end
 
