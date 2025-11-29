@@ -45,8 +45,17 @@ custom classes must fully style the input
 
 
 <!-- usage-rules-start -->
+<!-- usage-rules-header -->
+# Usage Rules
+
+**IMPORTANT**: Consult these usage rules early and often when working with the packages listed below.
+Before attempting to use any of these packages or to discover if you should use them, review their
+usage rules to understand the correct patterns, conventions, and best practices.
+<!-- usage-rules-header-end -->
+
 
 <!-- phoenix:elixir-start -->
+## phoenix:elixir usage
 ## Elixir guidelines
 
 - Elixir lists **do not support index based access via the access syntax**
@@ -90,9 +99,11 @@ custom classes must fully style the input
 - Read the docs and options before using tasks (by using `mix help task_name`)
 - To debug test failures, run tests in a specific file with `mix test test/my_test.exs` or run all previously failed tests with `mix test --failed`
 - `mix deps.clean --all` is **almost never needed**. **Avoid** using it unless you have good reason
+
 <!-- phoenix:elixir-end -->
 
 <!-- phoenix:phoenix-start -->
+## phoenix:phoenix usage
 ## Phoenix guidelines
 
 - Remember Phoenix router `scope` blocks include an optional alias which is prefixed for all routes within the scope. **Always** be mindful of this when creating routes within a scope to avoid duplicate module prefixes.
@@ -108,9 +119,11 @@ custom classes must fully style the input
   the UserLive route would point to the `AppWeb.Admin.UserLive` module
 
 - `Phoenix.View` no longer is needed or included with Phoenix, don't use it
+
 <!-- phoenix:phoenix-end -->
 
 <!-- phoenix:ecto-start -->
+## phoenix:ecto usage
 ## Ecto Guidelines
 
 - **Always** preload Ecto associations in queries when they'll be accessed in templates, ie a message that needs to reference the `message.user.email`
@@ -119,9 +132,11 @@ custom classes must fully style the input
 - `Ecto.Changeset.validate_number/2` **DOES NOT SUPPORT the `:allow_nil` option**. By default, Ecto validations only run if a change for the given field exists and the change value is not nil, so such as option is never needed
 - You **must** use `Ecto.Changeset.get_field(changeset, :field)` to access changeset fields
 - Fields which are set programatically, such as `user_id`, must not be listed in `cast` calls or similar for security purposes. Instead they must be explicitly set when creating the struct
+
 <!-- phoenix:ecto-end -->
 
 <!-- phoenix:html-start -->
+## phoenix:html usage
 ## Phoenix HTML guidelines
 
 - Phoenix templates **always** use `~H` or .html.heex files (known as HEEx), **never** use `~E`
@@ -198,9 +213,11 @@ custom classes must fully style the input
         {if @invalid_block_construct do}
         {end}
       </div>
+
 <!-- phoenix:html-end -->
 
 <!-- phoenix:liveview-start -->
+## phoenix:liveview usage
 ## Phoenix LiveView guidelines
 
 - **Never** use the deprecated `live_redirect` and `live_patch` functions, instead **always** use the `<.link navigate={href}>` and  `<.link patch={href}>` in templates, and `push_navigate` and `push_patch` functions LiveViews
@@ -329,6 +346,378 @@ And **never** do this:
 
 - You are FORBIDDEN from accessing the changeset in the template as it will cause errors
 - **Never** use `<.form let={f} ...>` in the template, instead **always use `<.form for={@form} ...>`**, then drive all form references from the form assign as in `@form[:field]`. The UI should **always** be driven by a `to_form/2` assigned in the LiveView module that is derived from a changeset
+
 <!-- phoenix:liveview-end -->
 
+<!-- usage_rules-start -->
+## usage_rules usage
+_A dev tool for Elixir projects to gather LLM usage rules from dependencies_
+
+## Using Usage Rules
+
+Many packages have usage rules, which you should *thoroughly* consult before taking any
+action. These usage rules contain guidelines and rules *directly from the package authors*.
+They are your best source of knowledge for making decisions.
+
+## Modules & functions in the current app and dependencies
+
+When looking for docs for modules & functions that are dependencies of the current project,
+or for Elixir itself, use `mix usage_rules.docs`
+
+```
+# Search a whole module
+mix usage_rules.docs Enum
+
+# Search a specific function
+mix usage_rules.docs Enum.zip
+
+# Search a specific function & arity
+mix usage_rules.docs Enum.zip/1
+```
+
+
+## Searching Documentation
+
+You should also consult the documentation of any tools you are using, early and often. The best 
+way to accomplish this is to use the `usage_rules.search_docs` mix task. Once you have
+found what you are looking for, use the links in the search results to get more detail. For example:
+
+```
+# Search docs for all packages in the current application, including Elixir
+mix usage_rules.search_docs Enum.zip
+
+# Search docs for specific packages
+mix usage_rules.search_docs Req.get -p req
+
+# Search docs for multi-word queries
+mix usage_rules.search_docs "making requests" -p req
+
+# Search only in titles (useful for finding specific functions/modules)
+mix usage_rules.search_docs "Enum.zip" --query-by title
+```
+
+
+<!-- usage_rules-end -->
+<!-- usage_rules:elixir-start -->
+## usage_rules:elixir usage
+# Elixir Core Usage Rules
+
+## Pattern Matching
+- Use pattern matching over conditional logic when possible
+- Prefer to match on function heads instead of using `if`/`else` or `case` in function bodies
+- `%{}` matches ANY map, not just empty maps. Use `map_size(map) == 0` guard to check for truly empty maps
+
+## Error Handling
+- Use `{:ok, result}` and `{:error, reason}` tuples for operations that can fail
+- Avoid raising exceptions for control flow
+- Use `with` for chaining operations that return `{:ok, _}` or `{:error, _}`
+
+## Common Mistakes to Avoid
+- Elixir has no `return` statement, nor early returns. The last expression in a block is always returned.
+- Don't use `Enum` functions on large collections when `Stream` is more appropriate
+- Avoid nested `case` statements - refactor to a single `case`, `with` or separate functions
+- Don't use `String.to_atom/1` on user input (memory leak risk)
+- Lists and enumerables cannot be indexed with brackets. Use pattern matching or `Enum` functions
+- Prefer `Enum` functions like `Enum.reduce` over recursion
+- When recursion is necessary, prefer to use pattern matching in function heads for base case detection
+- Using the process dictionary is typically a sign of unidiomatic code
+- Only use macros if explicitly requested
+- There are many useful standard library functions, prefer to use them where possible
+
+## Function Design
+- Use guard clauses: `when is_binary(name) and byte_size(name) > 0`
+- Prefer multiple function clauses over complex conditional logic
+- Name functions descriptively: `calculate_total_price/2` not `calc/2`
+- Predicate function names should not start with `is` and should end in a question mark.
+- Names like `is_thing` should be reserved for guards
+
+## Data Structures
+- Use structs over maps when the shape is known: `defstruct [:name, :age]`
+- Prefer keyword lists for options: `[timeout: 5000, retries: 3]`
+- Use maps for dynamic key-value data
+- Prefer to prepend to lists `[new | list]` not `list ++ [new]`
+
+## Mix Tasks
+
+- Use `mix help` to list available mix tasks
+- Use `mix help task_name` to get docs for an individual task
+- Read the docs and options fully before using tasks
+
+## Testing
+- Run tests in a specific file with `mix test test/my_test.exs` and a specific test with the line number `mix test path/to/test.exs:123`
+- Limit the number of failed tests with `mix test --max-failures n`
+- Use `@tag` to tag specific tests, and `mix test --only tag` to run only those tests
+- Use `assert_raise` for testing expected exceptions: `assert_raise ArgumentError, fn -> invalid_function() end`
+- Use `mix help test` to for full documentation on running tests
+
+## Debugging
+
+- Use `dbg/1` to print values while debugging. This will display the formatted value and other relevant information in the console.
+
+<!-- usage_rules:elixir-end -->
+<!-- usage_rules:otp-start -->
+## usage_rules:otp usage
+# OTP Usage Rules
+
+## GenServer Best Practices
+- Keep state simple and serializable
+- Handle all expected messages explicitly
+- Use `handle_continue/2` for post-init work
+- Implement proper cleanup in `terminate/2` when necessary
+
+## Process Communication
+- Use `GenServer.call/3` for synchronous requests expecting replies
+- Use `GenServer.cast/2` for fire-and-forget messages.
+- When in doubt, use `call` over `cast`, to ensure back-pressure
+- Set appropriate timeouts for `call/3` operations
+
+## Fault Tolerance
+- Set up processes such that they can handle crashing and being restarted by supervisors
+- Use `:max_restarts` and `:max_seconds` to prevent restart loops
+
+## Task and Async
+- Use `Task.Supervisor` for better fault tolerance
+- Handle task failures with `Task.yield/2` or `Task.shutdown/2`
+- Set appropriate task timeouts
+- Use `Task.async_stream/3` for concurrent enumeration with back-pressure
+
+<!-- usage_rules:otp-end -->
+<!-- usage_rules:mimic-start -->
+# Usage Rules for Mimic Library
+
+This document provides essential guidelines for coding agents when using the Mimic mocking library in Elixir projects. You should not mock any module that are part of the Elixir standard library nor the Otp library directly.
+
+## Critical Setup Requirements
+
+### **IMPORTANT: Module Preparation**
+
+- **MUST** call `Mimic.copy/2` for each module you want to mock in `test_helper.exs`
+- IMPORTANT: Always call Mimic.copy/2 with type_check: true. Never omit it.
+- **IMPORTANT**: Call `copy/2` BEFORE `ExUnit.start()`
+- Copying a module does NOT change its behavior until you stub/expect it
+
+```elixir
+# test_helper.exs
+Mimic.copy(Calculator, type_check: true)
+Mimic.copy(HTTPClient, type_check: true)
+ExUnit.start()
+```
+
+### **IMPORTANT: Test Module Setup**
+
+- **MUST** use `use Mimic` or `use Mimic.DSL` in test modules
+- **IMPORTANT**: Include `:test` environment only in mix.exs dependency
+
+```elixir
+# In test files
+defmodule MyTest do
+  use ExUnit.Case, async: true
+  use Mimic  # or use Mimic.DSL
+  
+  # tests here
+end
+```
+
+## Core API Functions (Order by Importance)
+
+### 1. `expect/4` - Primary Testing Function
+
+**IMPORTANT**: Use for functions that MUST be called during test
+
+- Creates expectations that must be fulfilled or test fails
+- Works like a FIFO queue for multiple calls
+- Auto-verified at test end when using `use Mimic`
+
+```elixir
+# Single call expectation
+Calculator
+|> expect(:add, fn x, y -> x + y end)
+
+# Multiple calls expectation
+Calculator  
+|> expect(:add, 3, fn x, y -> x + y end)
+
+# Chaining expectations (FIFO order)
+Calculator
+|> expect(:add, fn _, _ -> :first_call end)
+|> expect(:add, fn _, _ -> :second_call end)
+```
+
+### 2. `stub/3` - Flexible Mock Replacement
+
+- Use for functions that MAY be called during test
+- No verification failure if not called
+- Can be called multiple times
+
+```elixir
+Calculator
+|> stub(:add, fn x, y -> x + y end)
+```
+
+### 3. `stub/1` - Complete Module Stubbing
+
+- Stubs ALL public functions in module
+- Stubbed functions raise `UnexpectedCallError` when called
+
+```elixir
+stub(Calculator)  # All functions will raise if called
+```
+
+### 4. `reject/1` or `reject/3` - Forbidden Calls
+
+- Use to ensure functions are NOT called
+- Test fails if rejected function is called
+
+```elixir
+reject(&Calculator.dangerous_operation/1)
+# or
+reject(Calculator, :dangerous_operation, 1)
+```
+
+## Mode Selection (Critical Decision)
+
+### **IMPORTANT: Choose Appropriate Mode**
+
+#### Private Mode (Default - Recommended)
+
+- Tests can run with `async: true`
+- Each process sees its own mocks
+- Use `allow/3` for multi-process scenarios
+
+#### Global Mode (Use Sparingly)
+
+- **IMPORTANT**: Use `setup :set_mimic_global`
+- **CRITICAL**: MUST use `async: false` in global mode
+- All processes see same mocks
+- Only global owner can create stubs/expectations
+
+```elixir
+# Private mode (preferred)
+setup :set_mimic_private
+setup :verify_on_exit!
+
+# Global mode (when needed)  
+setup :set_mimic_global
+# Remember: async: false required
+```
+
+## DSL Mode Alternative
+
+### **IMPORTANT: DSL Syntax**
+
+Use `Mimic.DSL` for more natural syntax:
+
+```elixir
+use Mimic.DSL
+
+test "DSL example" do
+  stub Calculator.add(_x, _y), do: :stubbed
+  expect Calculator.mult(x, y), do: x * y
+  expect Calculator.add(x, y), num_calls: 2, do: x + y
+end
+```
+
+## Multi-Process Coordination
+
+### Using `allow/3` (Private Mode)
+
+```elixir
+test "multi-process test" do
+  Calculator |> expect(:add, fn x, y -> x + y end)
+  
+  parent_pid = self()
+  
+  spawn_link(fn ->
+    Calculator |> allow(parent_pid, self())
+    assert Calculator.add(1, 2) == 3
+  end)
+end
+```
+
+### **IMPORTANT**: Task Automatic Allowance  
+
+- Tasks automatically inherit parent process mocks
+- No need to call `allow/3` for `Task.async`
+
+## Critical Don'ts
+
+### **IMPORTANT: Function Export Requirements**
+
+- Can ONLY mock publicly exported functions
+- **MUST** match exact arity
+- Will raise `ArgumentError` for non-existent functions
+
+### **IMPORTANT: Intra-Module Function Calls**
+
+- Mocking does NOT work for internal function calls within same module
+- Use fully qualified names (`Module.function`) instead of local calls
+
+### **IMPORTANT: Global Mode Restrictions**
+
+- Only global owner process can create stubs/expectations
+- Other processes will get `ArgumentError`
+- Cannot use `allow/3` in global mode
+
+## Advanced Features
+
+### Type Checking (Experimental)
+
+```elixir
+Mimic.copy(HTTPClient, type_check: true)
+```
+
+### Calling Original Implementation
+
+```elixir  
+call_original(Calculator, :add, [1, 2])  # Returns 3
+```
+
+### Tracking Function Calls
+
+```elixir
+stub(Calculator, :add, fn x, y -> x + y end)
+Calculator.add(1, 2)
+calls(&Calculator.add/2)  # Returns [[1, 2]]
+```
+
+### Fake Module Stubbing
+
+```elixir
+stub_with(Calculator, MockCalculator)  # Replace all functions
+```
+
+## Common Patterns
+
+### Setup Pattern
+
+```elixir
+setup do
+  # Common setup
+  %{user: %User{id: 1}}
+end
+
+setup :verify_on_exit!  # Auto-verify expectations
+```
+
+### Expectation Chaining
+
+```elixir
+Calculator
+|> stub(:add, fn _, _ -> :fallback end)      # Fallback after expectations
+|> expect(:add, fn _, _ -> :first end)       # First call
+|> expect(:add, fn _, _ -> :second end)      # Second call  
+# Third call returns :fallback
+```
+
+## Error Handling
+
+### Common Errors and Solutions
+
+- `Module X has not been copied` → Add `Mimic.copy(X)` to test_helper.exs
+- `Function not defined for Module` → Check function name/arity
+- `Only the global owner is allowed` → Wrong process in global mode
+- `Allow must not be called when mode is global` → Don't mix allow with global mode
+
+**IMPORTANT**: Always verify exact function signatures and ensure modules are properly copied before mocking.
+<!-- usage_rules:mimic-end -->
 <!-- usage-rules-end -->

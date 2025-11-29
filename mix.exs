@@ -66,7 +66,8 @@ defmodule TswIo.MixProject do
       {:bandit, "~> 1.5"},
       {:circuits_uart, "~> 1.5"},
       {:req, "~> 0.5.0"},
-      {:mimic, "~> 2.0", only: :test}
+      {:mimic, "~> 2.0", only: :test},
+      {:usage_rules, "~> 0.1", only: :dev}
     ]
   end
 
@@ -89,7 +90,8 @@ defmodule TswIo.MixProject do
         "esbuild tsw_io --minify",
         "phx.digest"
       ],
-      precommit: ["compile --warning-as-errors", "deps.unlock --unused", "format", "test"]
+      precommit: ["compile --warning-as-errors", "deps.unlock --unused", "format", "test"],
+      usage: ["usage_rules.sync AGENTS.md --all --inline usage_rules:all --link-to-folder deps"]
     ]
   end
 end
