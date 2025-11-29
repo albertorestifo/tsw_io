@@ -93,7 +93,6 @@ defmodule TswIoWeb.ConfigurationListLive do
           </div>
         </div>
       </main>
-
     </div>
     """
   end
