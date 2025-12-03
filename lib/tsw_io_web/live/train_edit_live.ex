@@ -16,8 +16,8 @@ defmodule TswIoWeb.TrainEditLive do
   alias TswIo.Serial.Connection
 
   @impl true
-  def mount(%{"train_id" => "new"}, _session, socket) do
-    mount_new(socket)
+  def mount(%{"train_id" => "new"} = params, _session, socket) do
+    mount_new(socket, params)
   end
 
   @impl true
@@ -34,13 +34,13 @@ defmodule TswIoWeb.TrainEditLive do
     end
   end
 
-  defp mount_new(socket) do
+  defp mount_new(socket, params) do
     if connected?(socket) do
       TrainContext.subscribe()
     end
 
-    # Check for pre-filled identifier from query params
-    identifier = get_connect_params(socket)["identifier"] || ""
+    # Check for pre-filled identifier from URL query params
+    identifier = params["identifier"] || ""
 
     train = %Train{name: "", description: nil, identifier: identifier}
     changeset = Train.changeset(train, %{})
