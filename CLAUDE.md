@@ -41,6 +41,24 @@ First read and follow AGENTS.md, the following are additional constraints.
    def connect(config), do: # ...
    ```
 
+### Float Value Precision
+
+Always round float values to 2 decimal places when handling simulator inputs/outputs, calibration values, notch values, and any user-facing float data. This prevents floating-point precision artifacts like `-0.20000000298023224`.
+
+```elixir
+# Good - round to 2 decimal places
+value = Float.round(raw_value, 2)  # 0.20
+
+# Bad - raw float with precision artifacts
+value = raw_value  # -0.20000000298023224
+```
+
+Apply this in:
+- Simulator client when reading float values
+- Calibration processes when recording values
+- Notch value storage and retrieval
+- Any UI display of float values
+
 ### Protocol Messages
 
 When defining protocol messages with enum-like fields, handle the atom-to-integer conversion directly in the encode/decode functions using binary pattern matching. This keeps the API clean (atoms) while maintaining efficient wire format (integers).

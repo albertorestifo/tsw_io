@@ -34,15 +34,16 @@ defmodule TswIo.Train.Calibration.LeverSession do
   alias TswIo.Train.Notch
   alias TswIo.Train
 
-  # Step size for calibration sweep (0.01 = 1% of range per step)
-  @step 0.01
+  # Step size for calibration sweep (0.025 = 2.5% of range per step = ~40 steps)
+  # Larger steps speed up calibration while still detecting notch boundaries accurately
+  @step 0.025
 
   # Tolerance for detecting gate vs linear notches.
   # Values differing by more than this threshold indicate a gate notch.
   @tolerance 0.001
 
-  # Delay between calibration steps (ms) to avoid overwhelming the simulator
-  @step_delay_ms 10
+  # Delay between calibration steps (ms) to allow the simulator to process
+  @step_delay_ms 5
 
   defmodule State do
     @moduledoc false
@@ -373,7 +374,7 @@ defmodule TswIo.Train.Calibration.LeverSession do
         %Notch{
           index: index,
           type: :gate,
-          value: gate_value,
+          value: round_value(gate_value),
           min_value: nil,
           max_value: nil,
           description: description
@@ -384,8 +385,8 @@ defmodule TswIo.Train.Calibration.LeverSession do
           index: index,
           type: :linear,
           value: nil,
-          min_value: state.current_notch_start,
-          max_value: end_value,
+          min_value: round_value(state.current_notch_start),
+          max_value: round_value(end_value),
           description: description
         }
     end
@@ -421,4 +422,9 @@ defmodule TswIo.Train.Calibration.LeverSession do
       {:calibration_result, result}
     )
   end
+
+  # Round float values to 2 decimal places to avoid precision artifacts
+  defp round_value(nil), do: nil
+  defp round_value(value) when is_float(value), do: Float.round(value, 2)
+  defp round_value(value) when is_integer(value), do: value * 1.0
 end

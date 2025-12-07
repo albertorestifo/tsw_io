@@ -55,7 +55,14 @@ defmodule TswIo.Simulator.Client do
     req =
       Req.new(
         base_url: base_url,
-        headers: [{"DTGCommKey", api_key}]
+        headers: [{"DTGCommKey", api_key}],
+        # Enable connection pooling to avoid socket exhaustion during rapid requests
+        pool_timeout: 5_000,
+        receive_timeout: 10_000,
+        # Reduce retry attempts and delays for faster failure detection
+        retry: :transient,
+        retry_delay: fn attempt -> 100 * attempt end,
+        max_retries: 2
       )
 
     %__MODULE__{
@@ -160,9 +167,9 @@ defmodule TswIo.Simulator.Client do
   def get_float(%__MODULE__{} = client, path) when is_binary(path) do
     with {:ok, %{"Values" => values}} when map_size(values) > 0 <- get(client, path) do
       case Map.values(values) do
-        [value | _] when is_float(value) -> {:ok, value}
-        [value | _] when is_integer(value) -> {:ok, value * 1.0}
-        [value | _] when is_binary(value) -> parse_float(value)
+        [value | _] when is_float(value) -> {:ok, Float.round(value, 2)}
+        [value | _] when is_integer(value) -> {:ok, Float.round(value * 1.0, 2)}
+        [value | _] when is_binary(value) -> parse_float_rounded(value)
         _ -> {:error, :invalid_value}
       end
     else
@@ -202,9 +209,9 @@ defmodule TswIo.Simulator.Client do
     end
   end
 
-  defp parse_float(string) do
+  defp parse_float_rounded(string) do
     case Float.parse(string) do
-      {value, ""} -> {:ok, value}
+      {value, ""} -> {:ok, Float.round(value, 2)}
       _ -> {:error, :invalid_value}
     end
   end

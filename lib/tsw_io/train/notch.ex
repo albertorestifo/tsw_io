@@ -48,6 +48,7 @@ defmodule TswIo.Train.Notch do
   def changeset(%__MODULE__{} = notch, attrs) do
     notch
     |> cast(attrs, [:index, :type, :value, :min_value, :max_value, :description, :lever_config_id])
+    |> round_float_fields([:value, :min_value, :max_value])
     |> validate_required([:index, :type])
     |> validate_notch_values()
     |> foreign_key_constraint(:lever_config_id)
@@ -67,5 +68,16 @@ defmodule TswIo.Train.Notch do
       _ ->
         changeset
     end
+  end
+
+  # Round float fields to 2 decimal places to avoid precision artifacts
+  defp round_float_fields(changeset, fields) do
+    Enum.reduce(fields, changeset, fn field, cs ->
+      case get_change(cs, field) do
+        nil -> cs
+        value when is_float(value) -> put_change(cs, field, Float.round(value, 2))
+        _ -> cs
+      end
+    end)
   end
 end

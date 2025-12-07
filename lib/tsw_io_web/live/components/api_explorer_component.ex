@@ -244,7 +244,10 @@ defmodule TswIoWeb.ApiExplorerComponent do
       <div class="relative bg-base-100 rounded-xl shadow-xl w-full max-w-2xl max-h-[85vh] flex flex-col">
         <div class="p-4 border-b border-base-300">
           <div class="flex items-center justify-between mb-3">
-            <h2 class="text-lg font-semibold">Browse Simulator API</h2>
+            <div>
+              <h2 class="text-lg font-semibold">Browse Simulator API</h2>
+              <p class="text-sm text-base-content/60">Selecting: {format_field_name(@field)}</p>
+            </div>
             <button
               type="button"
               phx-click="close"
@@ -506,4 +509,12 @@ defmodule TswIoWeb.ApiExplorerComponent do
   end
 
   defp format_preview(value), do: inspect(value, pretty: true)
+
+  # Format field name for display
+  defp format_field_name(:min_endpoint), do: "Minimum Value Endpoint"
+  defp format_field_name(:max_endpoint), do: "Maximum Value Endpoint"
+  defp format_field_name(:value_endpoint), do: "Current Value Endpoint"
+  defp format_field_name(:notch_count_endpoint), do: "Notch Count Endpoint"
+  defp format_field_name(:notch_index_endpoint), do: "Notch Index Endpoint"
+  defp format_field_name(field), do: field |> Atom.to_string() |> String.replace("_", " ") |> String.capitalize()
 end
