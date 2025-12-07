@@ -154,15 +154,16 @@ defmodule TswIoWeb.ApiExplorerComponentTest do
          }}
       end)
 
+      # Child level responses use "Name" instead of "NodeName"
       expect(Client, :list, fn _client, "ControlDesk" ->
         {:ok,
          %{
            "NodeName" => "ControlDesk",
            "NodePath" => "Root/ControlDesk",
            "Nodes" => [
-             %{"NodeName" => "Throttle", "NodePath" => "Root/ControlDesk/Throttle"},
-             %{"NodeName" => "Brake", "NodePath" => "Root/ControlDesk/Brake"},
-             %{"NodeName" => "Reverser", "NodePath" => "Root/ControlDesk/Reverser"}
+             %{"Name" => "Throttle"},
+             %{"Name" => "Brake"},
+             %{"Name" => "Reverser"}
            ]
          }}
       end)
@@ -204,12 +205,13 @@ defmodule TswIoWeb.ApiExplorerComponentTest do
          }}
       end)
 
+      # Child level responses use "Name" instead of "NodeName"
       expect(Client, :list, fn _client, "ControlDesk" ->
         {:ok,
          %{
            "NodeName" => "ControlDesk",
            "NodePath" => "Root/ControlDesk",
-           "Nodes" => [%{"NodeName" => "Throttle", "NodePath" => "Root/ControlDesk/Throttle"}]
+           "Nodes" => [%{"Name" => "Throttle"}]
          }}
       end)
 
@@ -325,7 +327,7 @@ defmodule TswIoWeb.ApiExplorerComponentTest do
       # Search for "Throttle"
       view
       |> element("input[phx-keyup='search']")
-      |> render_keyup(%{"search" => "Throttle"})
+      |> render_keyup(%{"value" => "Throttle"})
 
       html = render(view)
       assert html =~ "Throttle"
@@ -364,7 +366,7 @@ defmodule TswIoWeb.ApiExplorerComponentTest do
 
       view
       |> element("input[phx-keyup='search']")
-      |> render_keyup(%{"search" => "brake"})
+      |> render_keyup(%{"value" => "brake"})
 
       html = render(view)
       assert html =~ "BRAKE"

@@ -156,7 +156,7 @@ defmodule TswIoWeb.ApiExplorerComponent do
   end
 
   @impl true
-  def handle_event("search", %{"search" => search}, socket) do
+  def handle_event("search", %{"value" => search}, socket) do
     filtered = filter_nodes(socket.assigns.nodes, search)
 
     {:noreply,
