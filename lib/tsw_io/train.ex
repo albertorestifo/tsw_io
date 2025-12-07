@@ -321,6 +321,59 @@ defmodule TswIo.Train do
     end)
   end
 
+  @doc """
+  Update input ranges for multiple notches.
+
+  Takes a list of maps with `:id`, `:input_min`, and `:input_max` keys
+  and updates each notch's input range. Used by the guided notch mapping wizard.
+
+  ## Parameters
+
+    * `lever_config_id` - The lever config ID
+    * `notch_updates` - List of maps: `[%{id: 1, input_min: 0.0, input_max: 0.33}, ...]`
+
+  ## Returns
+
+    * `{:ok, LeverConfig.t()}` - Updated lever config with reloaded notches
+    * `{:error, term()}` - Error if any update fails
+  """
+  @spec update_notch_input_ranges(integer(), [map()]) ::
+          {:ok, LeverConfig.t()} | {:error, term()}
+  def update_notch_input_ranges(lever_config_id, notch_updates) when is_list(notch_updates) do
+    Repo.transaction(fn ->
+      results =
+        Enum.map(notch_updates, fn %{id: notch_id, input_min: input_min, input_max: input_max} ->
+          case Repo.get(Notch, notch_id) do
+            nil ->
+              {:error, {:not_found, notch_id}}
+
+            notch ->
+              notch
+              |> Notch.changeset(%{input_min: input_min, input_max: input_max})
+              |> Repo.update()
+          end
+        end)
+
+      errors = Enum.filter(results, &match?({:error, _}, &1))
+
+      if errors != [] do
+        Repo.rollback({:update_errors, errors})
+      else
+        # Find the element_id from the lever config
+        case Repo.get(LeverConfig, lever_config_id) do
+          nil ->
+            Repo.rollback(:lever_config_not_found)
+
+          lever_config ->
+            case get_lever_config(lever_config.element_id) do
+              {:ok, reloaded} -> reloaded
+              {:error, reason} -> Repo.rollback(reason)
+            end
+        end
+      end
+    end)
+  end
+
   # ===================
   # Identifier Operations
   # ===================
@@ -378,6 +431,59 @@ defmodule TswIo.Train do
   """
   @spec subscribe_calibration(integer()) :: :ok
   defdelegate subscribe_calibration(lever_config_id), to: LeverSession, as: :subscribe
+
+  # ===================
+  # Notch Mapping Operations
+  # ===================
+
+  alias TswIo.Train.Calibration.NotchMappingSession
+
+  @doc """
+  Start a notch mapping session for guided input-to-notch boundary mapping.
+
+  ## Options
+
+    * `:lever_config` - Required. The lever config with preloaded notches.
+    * `:port` - Required. The serial port of the bound device.
+    * `:pin` - Required. The pin number of the bound input.
+    * `:calibration` - Required. The input's calibration data.
+
+  Returns `{:ok, pid}` if the session starts successfully,
+  `{:error, :already_running}` if a mapping session for this lever is already active.
+  """
+  @spec start_notch_mapping(keyword()) ::
+          {:ok, pid()} | {:error, :already_running} | {:error, term()}
+  defdelegate start_notch_mapping(opts), to: SessionSupervisor
+
+  @doc """
+  Stop a running notch mapping session.
+  """
+  @spec stop_notch_mapping(integer()) :: :ok | {:error, :not_found}
+  defdelegate stop_notch_mapping(lever_config_id), to: SessionSupervisor
+
+  @doc """
+  Check if a notch mapping session is running for a lever config.
+  """
+  @spec notch_mapping_running?(integer()) :: boolean()
+  defdelegate notch_mapping_running?(lever_config_id), to: SessionSupervisor
+
+  @doc """
+  Get the PID of a running notch mapping session.
+  """
+  @spec get_notch_mapping_session(integer()) :: pid() | nil
+  defdelegate get_notch_mapping_session(lever_config_id), to: SessionSupervisor
+
+  @doc """
+  Subscribe to notch mapping events for a lever config.
+
+  Events sent on topic `"train:notch_mapping:{lever_config_id}"`:
+  - `{:session_started, public_state}` - Session began
+  - `{:step_changed, public_state}` - Advanced to next step
+  - `{:sample_updated, public_state}` - Current value updated
+  - `{:mapping_result, {:ok, LeverConfig.t()} | {:error, reason}}` - Final result
+  """
+  @spec subscribe_notch_mapping(integer()) :: :ok
+  defdelegate subscribe_notch_mapping(lever_config_id), to: NotchMappingSession, as: :subscribe
 
   # ===================
   # Input Binding Operations
