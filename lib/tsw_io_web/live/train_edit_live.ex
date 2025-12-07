@@ -684,6 +684,16 @@ defmodule TswIoWeb.TrainEditLive do
   end
 
   @impl true
+  def handle_info({:capture_started, state}, socket) do
+    {:noreply, assign(socket, :notch_mapping_state, state)}
+  end
+
+  @impl true
+  def handle_info({:capture_stopped, state}, socket) do
+    {:noreply, assign(socket, :notch_mapping_state, state)}
+  end
+
+  @impl true
   def handle_info({:mapping_result, {:ok, _updated_config}}, socket) do
     {:ok, elements} = TrainContext.list_elements(socket.assigns.train.id)
     LeverController.reload_bindings()
