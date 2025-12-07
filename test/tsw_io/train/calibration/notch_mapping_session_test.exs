@@ -178,6 +178,7 @@ defmodule TswIo.Train.Calibration.NotchMappingSessionTest do
       pid = start_session(context)
 
       assert :ok = NotchMappingSession.start_mapping(pid)
+      assert :ok = NotchMappingSession.start_capturing(pid)
 
       # Send 10 samples all with same value
       for _ <- 1..10 do
@@ -196,6 +197,7 @@ defmodule TswIo.Train.Calibration.NotchMappingSessionTest do
       pid = start_session(context)
 
       assert :ok = NotchMappingSession.start_mapping(pid)
+      assert :ok = NotchMappingSession.start_capturing(pid)
 
       # Send varied samples to create a range
       # Raw values 200-300 → calibrated 100-200
@@ -209,8 +211,9 @@ defmodule TswIo.Train.Calibration.NotchMappingSessionTest do
       assert :ok = NotchMappingSession.capture_range(pid)
 
       state = NotchMappingSession.get_public_state(pid)
-      # Should have moved to notch 1
+      # Should have moved to notch 1 (in positioning mode)
       assert state.current_step == {:mapping_notch, 1}
+      assert state.is_capturing == false
       # First notch range should be captured
       assert hd(state.captured_ranges) != nil
       assert hd(state.captured_ranges).min == 100
@@ -235,6 +238,9 @@ defmodule TswIo.Train.Calibration.NotchMappingSessionTest do
       ]
 
       for range_values <- ranges do
+        # Start capturing for each notch
+        assert :ok = NotchMappingSession.start_capturing(pid)
+
         for value <- range_values do
           send(pid, {:input_value_updated, "/dev/test", 5, value})
         end
@@ -258,6 +264,7 @@ defmodule TswIo.Train.Calibration.NotchMappingSessionTest do
       pid = start_session(context)
 
       assert :ok = NotchMappingSession.start_mapping(pid)
+      assert :ok = NotchMappingSession.start_capturing(pid)
 
       # Send a few samples
       send(pid, {:input_value_updated, "/dev/test", 5, 500})
@@ -285,6 +292,7 @@ defmodule TswIo.Train.Calibration.NotchMappingSessionTest do
       pid = start_session(context)
 
       assert :ok = NotchMappingSession.start_mapping(pid)
+      assert :ok = NotchMappingSession.start_capturing(pid)
 
       # Send sample for different pin
       send(pid, {:input_value_updated, "/dev/test", 6, 500})
@@ -300,6 +308,7 @@ defmodule TswIo.Train.Calibration.NotchMappingSessionTest do
       pid = start_session(context)
 
       assert :ok = NotchMappingSession.start_mapping(pid)
+      assert :ok = NotchMappingSession.start_capturing(pid)
 
       for i <- 1..5 do
         send(pid, {:input_value_updated, "/dev/test", 5, 500 + i})
@@ -316,6 +325,7 @@ defmodule TswIo.Train.Calibration.NotchMappingSessionTest do
       pid = start_session(context)
 
       assert :ok = NotchMappingSession.start_mapping(pid)
+      assert :ok = NotchMappingSession.start_capturing(pid)
 
       # Collect some samples
       for value <- [200, 300, 400, 500, 600] do
@@ -329,13 +339,14 @@ defmodule TswIo.Train.Calibration.NotchMappingSessionTest do
       assert state.current_min == 100
       assert state.current_max == 500
 
-      # Reset
+      # Reset (also stops capturing)
       assert :ok = NotchMappingSession.reset_samples(pid)
 
       state = NotchMappingSession.get_public_state(pid)
       assert state.sample_count == 0
       assert state.current_min == nil
       assert state.current_max == nil
+      assert state.is_capturing == false
 
       NotchMappingSession.cancel(pid)
     end
@@ -374,6 +385,7 @@ defmodule TswIo.Train.Calibration.NotchMappingSessionTest do
       pid = start_session(context)
 
       assert :ok = NotchMappingSession.start_mapping(pid)
+      assert :ok = NotchMappingSession.start_capturing(pid)
 
       # Capture notch 0
       for value <- [200, 220, 250, 280, 300, 250, 220, 280, 240, 260] do
@@ -383,13 +395,14 @@ defmodule TswIo.Train.Calibration.NotchMappingSessionTest do
       :timer.sleep(20)
       assert :ok = NotchMappingSession.capture_range(pid)
 
-      # Now at notch 1, go back to 0
+      # Now at notch 1 (in positioning mode), go back to 0
       assert :ok = NotchMappingSession.go_to_notch(pid, 0)
 
       state = NotchMappingSession.get_public_state(pid)
       assert state.current_step == {:mapping_notch, 0}
       # Samples should be reset when navigating
       assert state.sample_count == 0
+      assert state.is_capturing == false
 
       NotchMappingSession.cancel(pid)
     end
@@ -402,6 +415,7 @@ defmodule TswIo.Train.Calibration.NotchMappingSessionTest do
       pid = start_session(context)
 
       assert :ok = NotchMappingSession.start_mapping(pid)
+      assert :ok = NotchMappingSession.start_capturing(pid)
 
       # Only capture one notch
       for value <- [200, 220, 250, 280, 300, 250, 220, 280, 240, 260] do
@@ -433,6 +447,8 @@ defmodule TswIo.Train.Calibration.NotchMappingSessionTest do
       ]
 
       for range_values <- ranges do
+        assert :ok = NotchMappingSession.start_capturing(pid)
+
         for value <- range_values do
           send(pid, {:input_value_updated, "/dev/test", 5, value})
         end
@@ -463,6 +479,8 @@ defmodule TswIo.Train.Calibration.NotchMappingSessionTest do
       ]
 
       for range_values <- ranges do
+        assert :ok = NotchMappingSession.start_capturing(pid)
+
         for value <- range_values do
           send(pid, {:input_value_updated, "/dev/test", 5, value})
         end
@@ -536,6 +554,9 @@ defmodule TswIo.Train.Calibration.NotchMappingSessionTest do
       NotchMappingSession.start_mapping(pid)
       assert_receive {:step_changed, _}
 
+      NotchMappingSession.start_capturing(pid)
+      assert_receive {:capture_started, _}
+
       send(pid, {:input_value_updated, "/dev/test", 5, 500})
       assert_receive {:sample_updated, state}
       assert state.current_value == 400
@@ -565,6 +586,9 @@ defmodule TswIo.Train.Calibration.NotchMappingSessionTest do
       ]
 
       for range_values <- ranges do
+        NotchMappingSession.start_capturing(pid)
+        flush_mailbox()
+
         for value <- range_values do
           send(pid, {:input_value_updated, "/dev/test", 5, value})
         end

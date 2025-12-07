@@ -108,6 +108,28 @@ defmodule TswIoWeb.NotchMappingWizard do
   end
 
   @impl true
+  def handle_event("start_capturing", _params, socket) do
+    case NotchMappingSession.start_capturing(socket.assigns.session_pid) do
+      :ok ->
+        {:noreply, socket}
+
+      {:error, reason} ->
+        {:noreply, put_flash(socket, :error, "Cannot start capturing: #{inspect(reason)}")}
+    end
+  end
+
+  @impl true
+  def handle_event("stop_capturing", _params, socket) do
+    case NotchMappingSession.stop_capturing(socket.assigns.session_pid) do
+      :ok ->
+        {:noreply, socket}
+
+      {:error, reason} ->
+        {:noreply, put_flash(socket, :error, "Cannot stop capturing: #{inspect(reason)}")}
+    end
+  end
+
+  @impl true
   def handle_event("go_to_notch", %{"index" => index_str}, socket) do
     index = String.to_integer(index_str)
 
@@ -345,49 +367,127 @@ defmodule TswIoWeb.NotchMappingWizard do
     state = assigns.state
     notch = state.current_notch
 
-    instruction = get_notch_instruction(notch)
-
     assigns =
       assigns
       |> assign(:notch, notch)
-      |> assign(:instruction, instruction)
+      |> assign(:is_capturing, state.is_capturing)
 
     ~H"""
     <div class="text-center">
-      <div class="w-16 h-16 mx-auto mb-4 rounded-full bg-info/10 flex items-center justify-center">
-        <.icon name="hero-cursor-arrow-rays" class="w-8 h-8 text-info" />
-      </div>
-      <h3 class="text-lg font-semibold mb-2">{@notch.description}</h3>
-      <p class="text-base-content/70 mb-4">
-        {@instruction}
-      </p>
+      <%= if @is_capturing do %>
+        <.capturing_view state={@state} notch={@notch} myself={@myself} />
+      <% else %>
+        <.positioning_view state={@state} notch={@notch} myself={@myself} />
+      <% end %>
+    </div>
+    """
+  end
 
-      <.range_display state={@state} />
+  attr :state, :map, required: true
+  attr :notch, :map, required: true
+  attr :myself, :any, required: true
 
-      <.sample_indicator state={@state} myself={@myself} />
+  defp positioning_view(assigns) do
+    ~H"""
+    <div class="w-16 h-16 mx-auto mb-4 rounded-full bg-base-300 flex items-center justify-center">
+      <.icon name="hero-arrow-path" class="w-8 h-8 text-base-content/70" />
+    </div>
+    <h3 class="text-lg font-semibold mb-2">{@notch.description} — Position Lever</h3>
+    <p class="text-base-content/70 mb-4">
+      Move the lever to the {@notch.description} position, then start capturing.
+    </p>
 
-      <div class="flex justify-between gap-4 pt-4 border-t border-base-300">
-        <button phx-click="cancel" phx-target={@myself} class="btn btn-ghost">
-          Cancel
+    <.position_display state={@state} />
+
+    <div class="flex justify-between gap-4 pt-4 border-t border-base-300">
+      <button phx-click="cancel" phx-target={@myself} class="btn btn-ghost">
+        Cancel
+      </button>
+      <div class="flex gap-2">
+        <button
+          :if={@state.all_captured}
+          phx-click="go_to_preview"
+          phx-target={@myself}
+          class="btn btn-outline"
+        >
+          Preview
         </button>
-        <div class="flex gap-2">
-          <button
-            :if={@state.all_captured}
-            phx-click="go_to_preview"
-            phx-target={@myself}
-            class="btn btn-outline"
-          >
-            Preview
-          </button>
-          <button
-            phx-click="capture_range"
-            phx-target={@myself}
-            disabled={!@state.can_capture}
-            class="btn btn-primary"
-          >
-            Capture <.icon name="hero-check" class="w-4 h-4" />
-          </button>
+        <button
+          phx-click="start_capturing"
+          phx-target={@myself}
+          class="btn btn-primary"
+        >
+          Start Capturing <.icon name="hero-play" class="w-4 h-4" />
+        </button>
+      </div>
+    </div>
+    """
+  end
+
+  attr :state, :map, required: true
+  attr :notch, :map, required: true
+  attr :myself, :any, required: true
+
+  defp capturing_view(assigns) do
+    instruction = get_notch_instruction(assigns.notch)
+    assigns = assign(assigns, :instruction, instruction)
+
+    ~H"""
+    <div class="w-16 h-16 mx-auto mb-4 rounded-full bg-warning/20 flex items-center justify-center">
+      <span class="relative flex h-4 w-4">
+        <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-warning opacity-75">
+        </span>
+        <span class="relative inline-flex rounded-full h-4 w-4 bg-warning"></span>
+      </span>
+    </div>
+    <h3 class="text-lg font-semibold mb-2">{@notch.description} — Capturing...</h3>
+    <p class="text-base-content/70 mb-4">
+      {@instruction}
+    </p>
+
+    <.range_display state={@state} />
+
+    <.sample_indicator state={@state} myself={@myself} />
+
+    <div class="flex justify-between gap-4 pt-4 border-t border-base-300">
+      <button phx-click="stop_capturing" phx-target={@myself} class="btn btn-ghost">
+        <.icon name="hero-arrow-uturn-left" class="w-4 h-4" /> Stop & Retry
+      </button>
+      <div class="flex gap-2">
+        <button
+          :if={@state.all_captured}
+          phx-click="go_to_preview"
+          phx-target={@myself}
+          class="btn btn-outline"
+        >
+          Preview
+        </button>
+        <button
+          phx-click="capture_range"
+          phx-target={@myself}
+          disabled={!@state.can_capture}
+          class="btn btn-primary"
+        >
+          Complete <.icon name="hero-check" class="w-4 h-4" />
+        </button>
+      </div>
+    </div>
+    """
+  end
+
+  attr :state, :map, required: true
+
+  defp position_display(assigns) do
+    ~H"""
+    <div class="bg-base-200 rounded-lg p-4 mb-4">
+      <div class="text-center">
+        <div class="text-3xl font-mono font-bold text-primary">
+          {format_calibrated(@state.current_value)}
         </div>
+        <div class="text-xs text-base-content/70 mt-1">Current Position</div>
+      </div>
+      <div class="mt-2 text-xs text-base-content/50 text-center">
+        Total travel: {@state.total_travel}
       </div>
     </div>
     """

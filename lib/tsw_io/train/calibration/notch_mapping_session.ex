@@ -9,6 +9,8 @@ defmodule TswIo.Train.Calibration.NotchMappingSession do
 
   1. Start session with lever config and bound input info
   2. For each notch:
+     - User positions lever at the notch (samples NOT collected yet)
+     - User clicks "Start Capturing" to begin sample collection
      - Gate: User wiggles the lever within the detent position
      - Linear: User sweeps the lever through the full notch range
      - System tracks min/max of all samples collected
@@ -67,6 +69,7 @@ defmodule TswIo.Train.Calibration.NotchMappingSession do
             total_travel: integer(),
             notches: [map()],
             current_step: step(),
+            is_capturing: boolean(),
             captured_ranges: [notch_range()],
             current_samples: [integer()],
             current_value: integer() | nil,
@@ -84,6 +87,7 @@ defmodule TswIo.Train.Calibration.NotchMappingSession do
       :total_travel,
       notches: [],
       current_step: :ready,
+      is_capturing: false,
       captured_ranges: [],
       current_samples: [],
       current_value: nil,
@@ -160,6 +164,23 @@ defmodule TswIo.Train.Calibration.NotchMappingSession do
   @spec reset_samples(pid()) :: :ok | {:error, term()}
   def reset_samples(pid) do
     GenServer.call(pid, :reset_samples)
+  end
+
+  @doc """
+  Begin capturing samples for the current notch.
+  Call this after the user has positioned the lever.
+  """
+  @spec start_capturing(pid()) :: :ok | {:error, term()}
+  def start_capturing(pid) do
+    GenServer.call(pid, :start_capturing)
+  end
+
+  @doc """
+  Stop capturing samples (returns to positioning state).
+  """
+  @spec stop_capturing(pid()) :: :ok | {:error, term()}
+  def stop_capturing(pid) do
+    GenServer.call(pid, :stop_capturing)
   end
 
   @doc """
@@ -271,6 +292,7 @@ defmodule TswIo.Train.Calibration.NotchMappingSession do
     new_state = %{
       state
       | current_step: {:mapping_notch, 0},
+        is_capturing: false,
         current_samples: [],
         current_min: nil,
         current_max: nil
@@ -302,6 +324,7 @@ defmodule TswIo.Train.Calibration.NotchMappingSession do
           state
           | captured_ranges: new_ranges,
             current_step: next_step,
+            is_capturing: false,
             current_samples: [],
             current_min: nil,
             current_max: nil
@@ -328,7 +351,8 @@ defmodule TswIo.Train.Calibration.NotchMappingSession do
   def handle_call(:reset_samples, _from, %State{current_step: {:mapping_notch, _}} = state) do
     new_state = %{
       state
-      | current_samples: [],
+      | is_capturing: false,
+        current_samples: [],
         current_min: nil,
         current_max: nil
     }
@@ -342,11 +366,48 @@ defmodule TswIo.Train.Calibration.NotchMappingSession do
   end
 
   @impl true
+  def handle_call(:start_capturing, _from, %State{current_step: {:mapping_notch, _}} = state) do
+    new_state = %{
+      state
+      | is_capturing: true,
+        current_samples: [],
+        current_min: nil,
+        current_max: nil
+    }
+
+    broadcast_event(new_state, :capture_started)
+    {:reply, :ok, new_state}
+  end
+
+  def handle_call(:start_capturing, _from, %State{} = state) do
+    {:reply, {:error, :invalid_step}, state}
+  end
+
+  @impl true
+  def handle_call(:stop_capturing, _from, %State{current_step: {:mapping_notch, _}} = state) do
+    new_state = %{
+      state
+      | is_capturing: false,
+        current_samples: [],
+        current_min: nil,
+        current_max: nil
+    }
+
+    broadcast_event(new_state, :capture_stopped)
+    {:reply, :ok, new_state}
+  end
+
+  def handle_call(:stop_capturing, _from, %State{} = state) do
+    {:reply, {:error, :invalid_step}, state}
+  end
+
+  @impl true
   def handle_call({:go_to_notch, idx}, _from, %State{} = state)
       when idx >= 0 and idx < length(state.notches) do
     new_state = %{
       state
       | current_step: {:mapping_notch, idx},
+        is_capturing: false,
         current_samples: [],
         current_min: nil,
         current_max: nil
@@ -411,28 +472,35 @@ defmodule TswIo.Train.Calibration.NotchMappingSession do
         # Convert to calibrated value (integer 0 to total_travel)
         calibrated = Calculator.normalize(raw_value, state.calibration)
 
-        # Update samples and min/max
-        new_samples = [calibrated | state.current_samples]
+        # Always update current_value so user can see lever position during positioning
+        # Only collect samples and update min/max when actively capturing
+        new_state =
+          if state.is_capturing do
+            new_samples = [calibrated | state.current_samples]
 
-        new_min =
-          case state.current_min do
-            nil -> calibrated
-            current -> min(current, calibrated)
+            new_min =
+              case state.current_min do
+                nil -> calibrated
+                current -> min(current, calibrated)
+              end
+
+            new_max =
+              case state.current_max do
+                nil -> calibrated
+                current -> max(current, calibrated)
+              end
+
+            %{
+              state
+              | current_samples: new_samples,
+                current_value: calibrated,
+                current_min: new_min,
+                current_max: new_max
+            }
+          else
+            # Positioning mode: only update current value for display
+            %{state | current_value: calibrated}
           end
-
-        new_max =
-          case state.current_max do
-            nil -> calibrated
-            current -> max(current, calibrated)
-          end
-
-        new_state = %{
-          state
-          | current_samples: new_samples,
-            current_value: calibrated,
-            current_min: new_min,
-            current_max: new_max
-        }
 
         broadcast_event(new_state, :sample_updated)
         {:noreply, new_state}
@@ -531,6 +599,7 @@ defmodule TswIo.Train.Calibration.NotchMappingSession do
       current_step: state.current_step,
       current_notch_index: current_notch_idx,
       current_notch: current_notch,
+      is_capturing: state.is_capturing,
       captured_ranges: state.captured_ranges,
       current_value: state.current_value,
       current_min: state.current_min,
