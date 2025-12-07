@@ -1166,7 +1166,7 @@ defmodule TswIoWeb.TrainEditLive do
 
   defp get_bound_input_port(%Element{lever_config: lever_config}) do
     case get_input_binding(lever_config) do
-      %LeverInputBinding{input: %{device: %{device_config_id: config_id}}} ->
+      %LeverInputBinding{input: %{device: %{config_id: config_id}}} ->
         find_port_for_device_config(config_id)
 
       _ ->
@@ -1188,7 +1188,7 @@ defmodule TswIoWeb.TrainEditLive do
     end
   end
 
-  defp find_port_for_device_config(config_id) when is_binary(config_id) do
+  defp find_port_for_device_config(config_id) when is_integer(config_id) do
     alias TswIo.Serial.Connection, as: SerialConnection
 
     SerialConnection.list_devices()
