@@ -72,7 +72,7 @@ defmodule TswIoWeb.TrainEditLive do
   end
 
   defp mount_existing(socket, train_id) do
-    case TrainContext.get_train(train_id, preload: [elements: [lever_config: :notches]]) do
+    case TrainContext.get_train(train_id, preload: [elements: [lever_config: [:notches, input_binding: [input: :device]]]]) do
       {:ok, train} ->
         if connected?(socket) do
           TrainContext.subscribe()
@@ -1080,50 +1080,14 @@ defmodule TswIoWeb.TrainEditLive do
               <.icon name="hero-link" class="w-4 h-4" />
               {if @input_binding, do: "Change", else: "Bind Input"}
             </button>
-            <div :if={@lever_config && @input_binding} class="dropdown dropdown-end">
-              <div tabindex="0" role="button" class="btn btn-sm btn-outline gap-1">
-                <.icon name="hero-queue-list" class="w-4 h-4" /> Map Notches
-                <.icon name="hero-chevron-down" class="w-3 h-3" />
-              </div>
-              <ul
-                tabindex="0"
-                class="dropdown-content z-[1] menu p-2 shadow-lg bg-base-100 rounded-box w-56"
-              >
-                <li>
-                  <button
-                    phx-click="open_guided_notch_mapping"
-                    phx-value-id={@element.id}
-                    class="flex items-start gap-3"
-                  >
-                    <.icon name="hero-cursor-arrow-rays" class="w-5 h-5 text-primary flex-shrink-0" />
-                    <div class="text-left">
-                      <div class="font-medium">Guided Wizard</div>
-                      <div class="text-xs text-base-content/60">
-                        Move lever to set boundaries
-                      </div>
-                    </div>
-                  </button>
-                </li>
-                <li>
-                  <button
-                    phx-click="open_notch_mapping"
-                    phx-value-id={@element.id}
-                    class="flex items-start gap-3"
-                  >
-                    <.icon
-                      name="hero-pencil-square"
-                      class="w-5 h-5 text-base-content/60 flex-shrink-0"
-                    />
-                    <div class="text-left">
-                      <div class="font-medium">Manual Entry</div>
-                      <div class="text-xs text-base-content/60">
-                        Type input values directly
-                      </div>
-                    </div>
-                  </button>
-                </li>
-              </ul>
-            </div>
+            <button
+              :if={@lever_config && @input_binding}
+              phx-click="open_guided_notch_mapping"
+              phx-value-id={@element.id}
+              class="btn btn-sm btn-outline gap-1"
+            >
+              <.icon name="hero-queue-list" class="w-4 h-4" /> Map Notches
+            </button>
           </div>
           <%!-- Secondary actions --%>
           <div class="flex items-center gap-1">
