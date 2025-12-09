@@ -47,3 +47,12 @@ npm-debug.log
 # Burrito build output
 /burrito_out/
 
+# Tauri build artifacts
+/tauri/src-tauri/target/
+/tauri/node_modules/
+/tauri/src-tauri/binaries/*.exe
+/tauri/src-tauri/binaries/*-aarch64-apple-darwin
+/tauri/src-tauri/binaries/*-x86_64-apple-darwin
+/tauri/src-tauri/binaries/*-x86_64-unknown-linux-gnu
+/tauri/src-tauri/binaries/*-x86_64-pc-windows-msvc
+
