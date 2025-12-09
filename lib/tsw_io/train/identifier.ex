@@ -31,9 +31,12 @@ defmodule TswIo.Train.Identifier do
   def common_prefix([single]), do: single
 
   def common_prefix([first | rest]) do
-    Enum.reduce(rest, first, fn string, acc ->
-      find_common_prefix(acc, string)
-    end)
+    prefix =
+      Enum.reduce(rest, first, fn string, acc ->
+        find_common_prefix(acc, string)
+      end)
+
+    strip_trailing_non_alphanumeric(prefix)
   end
 
   # Private functions
@@ -75,5 +78,9 @@ defmodule TswIo.Train.Identifier do
     |> Enum.take_while(fn {a, b} -> a == b end)
     |> Enum.map(fn {a, _} -> a end)
     |> Enum.join()
+  end
+
+  defp strip_trailing_non_alphanumeric(string) do
+    String.replace(string, ~r/[^a-zA-Z0-9]+$/, "")
   end
 end

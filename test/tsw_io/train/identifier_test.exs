@@ -25,7 +25,7 @@ defmodule TswIo.Train.IdentifierTest do
 
     test "finds common prefix of strings with same beginning" do
       assert Identifier.common_prefix(["BR_Class_66_DB", "BR_Class_66_Freightliner"]) ==
-               "BR_Class_66_"
+               "BR_Class_66"
     end
 
     test "finds common prefix across multiple strings" do
@@ -35,7 +35,7 @@ defmodule TswIo.Train.IdentifierTest do
         "BR_Class_66_GBRF"
       ]
 
-      assert Identifier.common_prefix(strings) == "BR_Class_66_"
+      assert Identifier.common_prefix(strings) == "BR_Class_66"
     end
 
     test "returns empty string when no common prefix exists" do
@@ -47,7 +47,21 @@ defmodule TswIo.Train.IdentifierTest do
     end
 
     test "handles unicode characters" do
-      assert Identifier.common_prefix(["Zürich_Train_A", "Zürich_Train_B"]) == "Zürich_Train_"
+      assert Identifier.common_prefix(["Zürich_Train_A", "Zürich_Train_B"]) == "Zürich_Train"
+    end
+
+    test "strips trailing non-alphanumeric characters" do
+      # Common prefix should not end with underscore or other non-alphanumeric chars
+      assert Identifier.common_prefix(["BR_Class_66_DB", "BR_Class_66_Freightliner"]) ==
+               "BR_Class_66"
+    end
+
+    test "strips multiple trailing non-alphanumeric characters" do
+      assert Identifier.common_prefix(["Train__A", "Train__B"]) == "Train"
+    end
+
+    test "handles prefix that is entirely alphanumeric" do
+      assert Identifier.common_prefix(["ABC123X", "ABC123Y"]) == "ABC123"
     end
   end
 
@@ -99,7 +113,7 @@ defmodule TswIo.Train.IdentifierTest do
       end)
 
       assert {:ok, identifier} = Identifier.derive_from_formation(client)
-      assert identifier == "BR_Class_66_"
+      assert identifier == "BR_Class_66"
     end
 
     test "returns error for empty formation" do
