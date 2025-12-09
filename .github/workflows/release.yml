@@ -50,7 +50,18 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential
+          sudo apt-get install -y build-essential xz-utils
+
+      - name: Install macOS build dependencies
+        if: runner.os == 'macOS'
+        run: brew install xz
+
+      - name: Install Windows build dependencies
+        if: runner.os == 'Windows'
+        run: choco install 7zip -y
+
+      - name: Setup Zig
+        uses: mlugg/setup-zig@v1
 
       - name: Cache Mix dependencies
         uses: actions/cache@v4
