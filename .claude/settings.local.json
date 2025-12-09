@@ -22,7 +22,8 @@
       "Bash(for i in {1..10})",
       "Bash(do echo -n \"Run $i: \")",
       "Bash(for i in 1 2 3 4 5)",
-      "Bash(do echo -n \"Test run $i: \")"
+      "Bash(do echo -n \"Test run $i: \")",
+      "WebFetch(domain:github.com)"
     ],
     "deny": [],
     "ask": []
