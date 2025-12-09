@@ -25,7 +25,7 @@ defmodule TswIo.Train.Detection do
   alias TswIo.Train
   alias TswIo.Train.Identifier
 
-  @poll_interval_ms 15_000
+  @poll_interval_ms 5_000
   @pubsub_topic "train:detection"
 
   defmodule State do

@@ -27,10 +27,6 @@ jobs:
             target: macos_arm64
             binary_name: tsw_io_desktop_macos_arm64
             tauri_target: aarch64-apple-darwin
-          - os: macos-13
-            target: macos_x86_64
-            binary_name: tsw_io_desktop_macos_x86_64
-            tauri_target: x86_64-apple-darwin
           - os: ubuntu-22.04
             target: linux_x86_64
             binary_name: tsw_io_desktop_linux_x86_64
@@ -99,11 +95,6 @@ jobs:
             elixir_binary: tsw_io_desktop_macos_arm64
             tauri_target: aarch64-apple-darwin
             tauri_args: --target aarch64-apple-darwin
-          - os: macos-13
-            target: macos_x86_64
-            elixir_binary: tsw_io_desktop_macos_x86_64
-            tauri_target: x86_64-apple-darwin
-            tauri_args: --target x86_64-apple-darwin
           - os: ubuntu-22.04
             target: linux_x86_64
             elixir_binary: tsw_io_desktop_linux_x86_64
