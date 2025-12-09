@@ -166,55 +166,6 @@ jobs:
         with:
           node-version: 20
 
-      - name: Create placeholder icons (macOS)
-        if: runner.os == 'macOS'
-        run: |
-          mkdir -p tauri/src-tauri/icons
-          cd tauri/src-tauri/icons
-          # Create placeholder icons using sips (built into macOS)
-          tiffutil -none -create icon.tiff -size 512 512 2>/dev/null || true
-          # Create placeholder PNG files
-          for size in 32 128 256 512; do
-            sips -s format png --resampleWidth $size /System/Library/CoreServices/CoreTypes.bundle/Contents/Resources/GenericApplicationIcon.icns --out ${size}x${size}.png 2>/dev/null || \
-            printf '%s\n' "P6" "$size $size" "255" | perl -e 'print <>;print "\x63\x66\xf1" x (shift()*shift())' $size $size > ${size}x${size}.ppm && convert ${size}x${size}.ppm ${size}x${size}.png 2>/dev/null || true
-          done
-          cp 256x256.png 128x128@2x.png 2>/dev/null || true
-          # Create icns
-          mkdir -p icon.iconset
-          cp 32x32.png icon.iconset/icon_32x32.png 2>/dev/null || true
-          cp 128x128.png icon.iconset/icon_128x128.png 2>/dev/null || true
-          cp 256x256.png icon.iconset/icon_256x256.png 2>/dev/null || true
-          cp 512x512.png icon.iconset/icon_512x512.png 2>/dev/null || true
-          iconutil -c icns icon.iconset -o icon.icns 2>/dev/null || touch icon.icns
-          rm -rf icon.iconset
-
-      - name: Create placeholder icons (Linux)
-        if: runner.os == 'Linux'
-        run: |
-          mkdir -p tauri/src-tauri/icons
-          cd tauri/src-tauri/icons
-          # Create simple placeholder PNGs using ImageMagick
-          sudo apt-get install -y imagemagick
-          for size in 32 128 256 512; do
-            convert -size ${size}x${size} xc:'#6366f1' -fill white -gravity center \
-              -pointsize $((size/3)) -annotate 0 'T' ${size}x${size}.png
-          done
-          cp 256x256.png 128x128@2x.png
-
-      - name: Create placeholder icons (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          New-Item -ItemType Directory -Force -Path "tauri/src-tauri/icons"
-          # Download a placeholder icon or create empty files
-          # Tauri will warn but continue building
-          $sizes = @(32, 128, 256)
-          foreach ($size in $sizes) {
-            New-Item -ItemType File -Force -Path "tauri/src-tauri/icons/${size}x${size}.png"
-          }
-          New-Item -ItemType File -Force -Path "tauri/src-tauri/icons/128x128@2x.png"
-          New-Item -ItemType File -Force -Path "tauri/src-tauri/icons/icon.ico"
-
       - name: Build Tauri app
         uses: tauri-apps/tauri-action@v0
         env:
