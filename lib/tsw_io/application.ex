@@ -19,6 +19,7 @@ defmodule TswIo.Application do
         TswIo.Serial.Connection,
         TswIo.Hardware.ConfigurationManager,
         TswIo.Hardware.Calibration.SessionSupervisor,
+        TswIo.Firmware.UploadManager,
         TswIo.Train.Detection,
         TswIo.Train.Calibration.SessionSupervisor,
         # Start to serve requests, typically the last entry

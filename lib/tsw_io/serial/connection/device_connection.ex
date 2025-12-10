@@ -4,22 +4,23 @@ defmodule TswIo.Serial.Connection.DeviceConnection do
 
   ## Lifecycle States
 
-      :connecting → :discovering → :connected
-           ↓             ↓              ↓
-           └─────→ :disconnecting ←─────┘
+      :connecting → :discovering → :connected → :uploading
+           ↓             ↓              ↓            ↓
+           └─────→ :disconnecting ←─────┴────────────┘
                          ↓
                       :failed
 
   - `:connecting` - UART process started, attempting to open port
   - `:discovering` - Port open, sending identity request
   - `:connected` - Device identified and ready for use
+  - `:uploading` - Device disconnected for firmware upload via avrdude
   - `:disconnecting` - Cleanup in progress (async)
   - `:failed` - Cleanup complete, port will be retried after backoff
   """
 
   alias TswIo.Serial.Protocol.IdentityResponse
 
-  @type status :: :connecting | :discovering | :connected | :disconnecting | :failed
+  @type status :: :connecting | :discovering | :connected | :uploading | :disconnecting | :failed
 
   @type t :: %__MODULE__{
           port: String.t(),
@@ -27,11 +28,12 @@ defmodule TswIo.Serial.Connection.DeviceConnection do
           pid: pid() | nil,
           failed_at: integer() | nil,
           device_config_id: integer() | nil,
-          device_version: integer() | nil
+          device_version: integer() | nil,
+          upload_token: String.t() | nil
         }
 
   @enforce_keys [:port, :status]
-  defstruct [:port, :status, :pid, :device_config_id, :device_version, :failed_at]
+  defstruct [:port, :status, :pid, :device_config_id, :device_version, :failed_at, :upload_token]
 
   @doc "Create a new connection in :connecting state"
   @spec new(String.t(), pid()) :: t()
@@ -97,5 +99,46 @@ defmodule TswIo.Serial.Connection.DeviceConnection do
   @spec active?(t()) :: boolean()
   def active?(%__MODULE__{status: status}) do
     status in [:connecting, :discovering, :connected, :disconnecting]
+  end
+
+  @doc """
+  Transition to :uploading state for firmware upload.
+
+  Generates a unique token that must be provided to release the port.
+  The UART process should be closed before calling this.
+  """
+  @spec mark_uploading(t()) :: {t(), String.t()}
+  def mark_uploading(%__MODULE__{status: :connected} = conn) do
+    token = generate_upload_token()
+    updated = %__MODULE__{conn | status: :uploading, pid: nil, upload_token: token}
+    {updated, token}
+  end
+
+  @doc """
+  Release upload access and transition back to :failed state.
+
+  The port will be rediscovered on the next scan cycle.
+  Returns :ok if the token matches, :error otherwise.
+  """
+  @spec release_upload(t(), String.t()) :: {:ok, t()} | {:error, :invalid_token}
+  def release_upload(%__MODULE__{status: :uploading, upload_token: token} = conn, provided_token) do
+    if token == provided_token do
+      updated = %__MODULE__{
+        conn
+        | status: :failed,
+          upload_token: nil,
+          failed_at: System.monotonic_time(:millisecond)
+      }
+
+      {:ok, updated}
+    else
+      {:error, :invalid_token}
+    end
+  end
+
+  def release_upload(%__MODULE__{}, _token), do: {:error, :invalid_token}
+
+  defp generate_upload_token do
+    :crypto.strong_rand_bytes(16) |> Base.encode64()
   end
 end

@@ -86,6 +86,40 @@ defmodule TswIo.Serial.Connection do
     GenServer.call(__MODULE__, {:send_message, port, message})
   end
 
+  @doc """
+  Request exclusive access to a port for firmware upload.
+
+  Closes the UART connection and marks the device as uploading.
+  Returns a token that must be used to release the port.
+
+  ## Returns
+
+    * `{:ok, token}` - Port is now available for avrdude
+    * `{:error, :device_not_found}` - Port not tracked
+    * `{:error, :not_connected}` - Device not in connected state
+    * `{:error, :upload_in_progress}` - Another upload is already in progress
+  """
+  @spec request_upload_access(String.t()) ::
+          {:ok, String.t()} | {:error, :device_not_found | :not_connected | :upload_in_progress}
+  def request_upload_access(port) do
+    GenServer.call(__MODULE__, {:request_upload_access, port})
+  end
+
+  @doc """
+  Release upload access and allow reconnection.
+
+  The port will be rediscovered on the next scan cycle.
+
+  ## Returns
+
+    * `:ok` - Port released successfully
+    * `{:error, :invalid_token}` - Token doesn't match
+  """
+  @spec release_upload_access(String.t(), String.t()) :: :ok | {:error, :invalid_token}
+  def release_upload_access(port, token) do
+    GenServer.call(__MODULE__, {:release_upload_access, port, token})
+  end
+
   # Server callbacks
 
   @impl true
@@ -126,6 +160,55 @@ defmodule TswIo.Serial.Connection do
 
       nil ->
         {:reply, {:error, :unknown_port}, state}
+    end
+  end
+
+  @impl true
+  def handle_call({:request_upload_access, port}, _from, state) do
+    # Check if any device is already uploading
+    has_upload_in_progress =
+      state.ports
+      |> Map.values()
+      |> Enum.any?(&(&1.status == :uploading))
+
+    if has_upload_in_progress do
+      {:reply, {:error, :upload_in_progress}, state}
+    else
+      case State.get(state, port) do
+        nil ->
+          {:reply, {:error, :device_not_found}, state}
+
+        %DeviceConnection{status: :connected, pid: pid} = conn ->
+          # Close the UART connection synchronously
+          safe_close_uart(pid)
+          # Mark as uploading and get token
+          {updated_conn, token} = DeviceConnection.mark_uploading(conn)
+          updated_state = State.put(state, updated_conn)
+          broadcast_update(updated_state)
+          {:reply, {:ok, token}, updated_state}
+
+        %DeviceConnection{status: _status} ->
+          {:reply, {:error, :not_connected}, state}
+      end
+    end
+  end
+
+  @impl true
+  def handle_call({:release_upload_access, port, token}, _from, state) do
+    case State.get(state, port) do
+      %DeviceConnection{status: :uploading} = conn ->
+        case DeviceConnection.release_upload(conn, token) do
+          {:ok, updated_conn} ->
+            updated_state = State.put(state, updated_conn)
+            broadcast_update(updated_state)
+            {:reply, :ok, updated_state}
+
+          {:error, :invalid_token} ->
+            {:reply, {:error, :invalid_token}, state}
+        end
+
+      _ ->
+        {:reply, {:error, :invalid_token}, state}
     end
   end
 
@@ -382,6 +465,21 @@ defmodule TswIo.Serial.Connection do
       # Always notify completion, even if cleanup had errors
       GenServer.cast(__MODULE__, {:cleanup_complete, port})
     end)
+  end
+
+  # Safely closes a UART connection for firmware upload.
+  # Only closes the port, doesn't stop the GenServer process.
+  defp safe_close_uart(pid) when is_pid(pid) do
+    if Process.alive?(pid) do
+      try do
+        UART.close(pid)
+        GenServer.stop(pid, :normal, 100)
+      catch
+        :exit, _ -> :ok
+      end
+    end
+
+    :ok
   end
 
   # Safely stops a UART process, handling unresponsive or dead processes.
