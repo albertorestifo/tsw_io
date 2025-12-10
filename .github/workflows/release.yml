@@ -199,6 +199,12 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
+          cache: 'npm'
+          cache-dependency-path: tauri/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: tauri
+        run: npm install
 
       - name: Build Tauri app
         uses: tauri-apps/tauri-action@v0
