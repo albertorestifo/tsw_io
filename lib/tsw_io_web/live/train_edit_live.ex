@@ -72,7 +72,9 @@ defmodule TswIoWeb.TrainEditLive do
   end
 
   defp mount_existing(socket, train_id) do
-    case TrainContext.get_train(train_id, preload: [elements: [lever_config: [:notches, input_binding: [input: :device]]]]) do
+    case TrainContext.get_train(train_id,
+           preload: [elements: [lever_config: [:notches, input_binding: [input: :device]]]]
+         ) do
       {:ok, train} ->
         if connected?(socket) do
           TrainContext.subscribe()

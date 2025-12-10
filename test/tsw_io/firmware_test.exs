@@ -390,7 +390,9 @@ defmodule TswIo.FirmwareTest do
           board_type: :leonardo
         })
 
-      assert {:ok, failed} = Firmware.fail_upload(history, "Device not responding", "avrdude: error")
+      assert {:ok, failed} =
+               Firmware.fail_upload(history, "Device not responding", "avrdude: error")
+
       assert failed.status == :failed
       assert failed.error_message == "Device not responding"
       assert failed.avrdude_output == "avrdude: error"

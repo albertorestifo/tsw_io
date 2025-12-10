@@ -53,13 +53,11 @@ defmodule TswIo.Serial.DiscoveryTest do
   describe "discover/1 - success path" do
     test "returns identity response when valid response is received" do
       # Arrange
-      device_id = 42
-      version = 100
+      version = "1.0.0"
       config_id = 5
 
       identity_response = %Protocol.IdentityResponse{
         request_id: 123,
-        device_id: device_id,
         version: version,
         config_id: config_id
       }
@@ -79,7 +77,6 @@ defmodule TswIo.Serial.DiscoveryTest do
 
       # Assert
       assert {:ok, %Protocol.IdentityResponse{} = response} = result
-      assert response.device_id == device_id
       assert response.version == version
       assert response.config_id == config_id
     end
@@ -88,8 +85,7 @@ defmodule TswIo.Serial.DiscoveryTest do
       # Arrange
       identity_response = %Protocol.IdentityResponse{
         request_id: 123,
-        device_id: 10,
-        version: 50,
+        version: "0.5.0",
         config_id: 0
       }
 
@@ -115,8 +111,7 @@ defmodule TswIo.Serial.DiscoveryTest do
 
       valid_response = %Protocol.IdentityResponse{
         request_id: 123,
-        device_id: 1,
-        version: 1,
+        version: "1.0.0",
         config_id: 0
       }
 
@@ -258,11 +253,9 @@ defmodule TswIo.Serial.DiscoveryTest do
 
     test "succeeds immediately on first valid response" do
       # Arrange
-      # Note: version is uint8, max value is 255
       valid_response = %Protocol.IdentityResponse{
         request_id: 123,
-        device_id: 99,
-        version: 231,
+        version: "1.0.0",
         config_id: 888
       }
 
@@ -274,7 +267,7 @@ defmodule TswIo.Serial.DiscoveryTest do
       result = discover_with_mock(uart_pid)
 
       # Assert
-      assert {:ok, %Protocol.IdentityResponse{device_id: 99, version: 231, config_id: 888}} =
+      assert {:ok, %Protocol.IdentityResponse{version: "1.0.0", config_id: 888}} =
                result
     end
   end

@@ -78,7 +78,10 @@ defmodule TswIo.Firmware.DownloaderTest do
 
       # Verify it's in the database
       assert {:ok, release} = Firmware.get_release_by_tag("v1.0.0", preload: [:firmware_files])
-      assert release.release_url == "https://github.com/albertorestifo/tsw_board/releases/tag/v1.0.0"
+
+      assert release.release_url ==
+               "https://github.com/albertorestifo/tsw_board/releases/tag/v1.0.0"
+
       assert release.release_notes == "Initial release with support for Arduino boards"
 
       # Should have created firmware files for all 7 board types
@@ -247,7 +250,8 @@ defmodule TswIo.Firmware.DownloaderTest do
         {:error, %Mint.TransportError{reason: :econnrefused}}
       end)
 
-      assert {:error, %Mint.TransportError{reason: :econnrefused}} = Downloader.check_for_updates()
+      assert {:error, %Mint.TransportError{reason: :econnrefused}} =
+               Downloader.check_for_updates()
     end
 
     test "handles release without published_at" do

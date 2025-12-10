@@ -85,7 +85,8 @@ defmodule TswIo.Firmware.UploaderTest do
       ]
 
       Enum.each(patterns, fn pattern ->
-        assert String.contains?(pattern, "not responding") or String.contains?(pattern, "not in sync"),
+        assert String.contains?(pattern, "not responding") or
+                 String.contains?(pattern, "not in sync"),
                "Pattern should trigger bootloader_not_responding: #{pattern}"
       end)
     end

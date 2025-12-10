@@ -110,7 +110,12 @@ defmodule TswIoWeb.NavComponents do
               />
             </button>
 
-            <.device_dropdown :if={@dropdown_open} devices={@devices} scanning={@scanning} firmware_checking={@firmware_checking} />
+            <.device_dropdown
+              :if={@dropdown_open}
+              devices={@devices}
+              scanning={@scanning}
+              firmware_checking={@firmware_checking}
+            />
           </div>
         </div>
       </div>

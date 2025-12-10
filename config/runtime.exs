@@ -28,40 +28,40 @@ if config_env() == :prod do
   database_path =
     System.get_env("DATABASE_PATH") ||
       (fn ->
-        app_name = "TswIo"
-        app_name_lower = "tsw_io"
+         app_name = "TswIo"
+         app_name_lower = "tsw_io"
 
-        data_dir =
-          case :os.type() do
-            {:unix, :darwin} ->
-              # macOS: ~/Library/Application Support/TswIo
-              home = System.get_env("HOME") || "~"
-              Path.join([home, "Library", "Application Support", app_name])
+         data_dir =
+           case :os.type() do
+             {:unix, :darwin} ->
+               # macOS: ~/Library/Application Support/TswIo
+               home = System.get_env("HOME") || "~"
+               Path.join([home, "Library", "Application Support", app_name])
 
-            {:win32, _} ->
-              # Windows: %APPDATA%/TswIo
-              appdata = System.get_env("APPDATA") || System.get_env("LOCALAPPDATA") || "."
-              Path.join(appdata, app_name)
+             {:win32, _} ->
+               # Windows: %APPDATA%/TswIo
+               appdata = System.get_env("APPDATA") || System.get_env("LOCALAPPDATA") || "."
+               Path.join(appdata, app_name)
 
-            {:unix, _} ->
-              # Linux/BSD: $XDG_DATA_HOME/tsw_io or ~/.local/share/tsw_io
-              xdg_data = System.get_env("XDG_DATA_HOME")
+             {:unix, _} ->
+               # Linux/BSD: $XDG_DATA_HOME/tsw_io or ~/.local/share/tsw_io
+               xdg_data = System.get_env("XDG_DATA_HOME")
 
-              base_dir =
-                if xdg_data && xdg_data != "" do
-                  xdg_data
-                else
-                  home = System.get_env("HOME") || "~"
-                  Path.join([home, ".local", "share"])
-                end
+               base_dir =
+                 if xdg_data && xdg_data != "" do
+                   xdg_data
+                 else
+                   home = System.get_env("HOME") || "~"
+                   Path.join([home, ".local", "share"])
+                 end
 
-              Path.join(base_dir, app_name_lower)
-          end
+               Path.join(base_dir, app_name_lower)
+           end
 
-        # Ensure directory exists
-        File.mkdir_p!(data_dir)
-        Path.join(data_dir, "#{app_name_lower}.db")
-      end).()
+         # Ensure directory exists
+         File.mkdir_p!(data_dir)
+         Path.join(data_dir, "#{app_name_lower}.db")
+       end).()
 
   config :tsw_io, TswIo.Repo,
     database: database_path,
@@ -73,12 +73,12 @@ if config_env() == :prod do
   secret_key_base =
     System.get_env("SECRET_KEY_BASE") ||
       (fn ->
-        # Generate a stable secret based on the data directory path
-        # This ensures the same key is used across restarts on the same machine
-        # SHA256 produces 32 bytes, encode16 produces 64 hex characters
-        :crypto.hash(:sha256, database_path)
-        |> Base.encode16(case: :lower)
-      end).()
+         # Generate a stable secret based on the data directory path
+         # This ensures the same key is used across restarts on the same machine
+         # SHA256 produces 32 bytes, encode16 produces 64 hex characters
+         :crypto.hash(:sha256, database_path)
+         |> Base.encode16(case: :lower)
+       end).()
 
   host = System.get_env("PHX_HOST") || "localhost"
   port = String.to_integer(System.get_env("PORT") || "4000")

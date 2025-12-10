@@ -53,14 +53,16 @@ defmodule TswIo.Serial.Connection.DeviceConnectionTest do
     test "transitions from :discovering to :connected with identity response" do
       # Arrange
       conn = SerialTestHelpers.build_discovering_connection()
-      identity_response = SerialTestHelpers.build_identity_response(version: 200, config_id: 42)
+
+      identity_response =
+        SerialTestHelpers.build_identity_response(version: "2.0.0", config_id: 42)
 
       # Act
       updated_conn = DeviceConnection.mark_connected(conn, identity_response)
 
       # Assert
       assert updated_conn.status == :connected
-      assert updated_conn.device_version == 200
+      assert updated_conn.device_version == "2.0.0"
       assert updated_conn.device_config_id == 42
     end
 

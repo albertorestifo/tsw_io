@@ -72,7 +72,10 @@ defmodule TswIoWeb.FirmwareLive do
      |> assign(:current_upload, nil)
      |> assign(:upload_progress, nil)
      |> assign(:show_upload_modal, false)
-     |> assign(:upload_history, Firmware.list_upload_history(limit: 10, preload: [:firmware_file]))
+     |> assign(
+       :upload_history,
+       Firmware.list_upload_history(limit: 10, preload: [:firmware_file])
+     )
      |> put_flash(:info, "Firmware uploaded successfully in #{duration_ms}ms")}
   end
 
@@ -83,7 +86,10 @@ defmodule TswIoWeb.FirmwareLive do
      |> assign(:current_upload, nil)
      |> assign(:upload_progress, nil)
      |> assign(:upload_error, message)
-     |> assign(:upload_history, Firmware.list_upload_history(limit: 10, preload: [:firmware_file]))}
+     |> assign(
+       :upload_history,
+       Firmware.list_upload_history(limit: 10, preload: [:firmware_file])
+     )}
   end
 
   # Nav events
@@ -189,7 +195,8 @@ defmodule TswIoWeb.FirmwareLive do
       {:noreply, assign(socket, :upload_error, nil)}
     else
       {:error, :not_found} ->
-        {:noreply, assign(socket, :upload_error, "No firmware releases available. Check for updates first.")}
+        {:noreply,
+         assign(socket, :upload_error, "No firmware releases available. Check for updates first.")}
 
       {:error, :firmware_not_downloaded} ->
         {:noreply, assign(socket, :upload_error, "Please download the firmware first.")}
@@ -212,7 +219,10 @@ defmodule TswIoWeb.FirmwareLive do
   end
 
   defp find_downloaded_file(release, board_type) do
-    case Enum.find(release.firmware_files, &(&1.board_type == board_type && FirmwareFile.downloaded?(&1))) do
+    case Enum.find(
+           release.firmware_files,
+           &(&1.board_type == board_type && FirmwareFile.downloaded?(&1))
+         ) do
       nil -> {:error, :firmware_not_downloaded}
       file -> {:ok, file}
     end
@@ -312,7 +322,9 @@ defmodule TswIoWeb.FirmwareLive do
       <.icon name="hero-cpu-chip" class="w-16 h-16 text-base-content/20" />
       <h2 class="mt-6 text-xl font-semibold">No Firmware Releases</h2>
       <p class="mt-2 text-base-content/70 max-w-sm">
-        {if @checking, do: "Checking for updates...", else: "Click 'Check for Updates' to fetch available firmware versions from GitHub."}
+        {if @checking,
+          do: "Checking for updates...",
+          else: "Click 'Check for Updates' to fetch available firmware versions from GitHub."}
       </p>
     </div>
     """
@@ -340,8 +352,7 @@ defmodule TswIoWeb.FirmwareLive do
           target="_blank"
           class="btn btn-ghost btn-xs"
         >
-          <.icon name="hero-arrow-top-right-on-square" class="w-3 h-3" />
-          View on GitHub
+          <.icon name="hero-arrow-top-right-on-square" class="w-3 h-3" /> View on GitHub
         </a>
       </div>
 
@@ -418,12 +429,10 @@ defmodule TswIoWeb.FirmwareLive do
         phx-value-port={@device.port}
         class="btn btn-sm btn-outline"
       >
-        <.icon name="hero-arrow-up-tray" class="w-4 h-4" />
-        Update Firmware
+        <.icon name="hero-arrow-up-tray" class="w-4 h-4" /> Update Firmware
       </button>
       <span :if={@uploading} class="badge badge-warning">
-        <.icon name="hero-arrow-path" class="w-3 h-3 animate-spin mr-1" />
-        Uploading...
+        <.icon name="hero-arrow-path" class="w-3 h-3 animate-spin mr-1" /> Uploading...
       </span>
     </div>
     """
@@ -558,7 +567,7 @@ defmodule TswIoWeb.FirmwareLive do
           <div class="text-center py-4">
             <.icon name="hero-cpu-chip" class="w-12 h-12 text-primary mx-auto animate-pulse" />
             <p class="mt-2 text-sm text-base-content/70">
-              {@progress && @progress.message || "Uploading..."}
+              {(@progress && @progress.message) || "Uploading..."}
             </p>
           </div>
 
@@ -589,8 +598,7 @@ defmodule TswIoWeb.FirmwareLive do
             disabled={@board_type == nil}
             class="btn btn-primary"
           >
-            <.icon name="hero-arrow-up-tray" class="w-4 h-4" />
-            Start Upload
+            <.icon name="hero-arrow-up-tray" class="w-4 h-4" /> Start Upload
           </button>
           <button
             :if={@uploading}

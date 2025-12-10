@@ -23,7 +23,11 @@ defmodule TswIo.Firmware do
 
   # Delegate update check operations to UpdateChecker
   defdelegate check_update_status(), to: TswIo.Firmware.UpdateChecker, as: :get_update_status
-  defdelegate dismiss_update_notification(), to: TswIo.Firmware.UpdateChecker, as: :dismiss_notification
+
+  defdelegate dismiss_update_notification(),
+    to: TswIo.Firmware.UpdateChecker,
+    as: :dismiss_notification
+
   defdelegate subscribe_update_notifications(), to: TswIo.Firmware.UpdateChecker, as: :subscribe
   defdelegate trigger_update_check(), to: TswIo.Firmware.UpdateChecker, as: :check_now
 

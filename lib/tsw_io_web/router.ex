@@ -31,5 +31,4 @@ defmodule TswIoWeb.Router do
   # scope "/api", TswIoWeb do
   #   pipe_through :api
   # end
-
 end

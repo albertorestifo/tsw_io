@@ -58,32 +58,30 @@ defmodule TswIo.Serial.ProtocolTest do
     test "encode encodes all fields correctly" do
       response = %IdentityResponse{
         request_id: 0x12345678,
-        version: 0x01,
-        device_id: 0x42,
+        version: "1.2.3",
         config_id: 0xDEADBEEF
       }
 
       {:ok, encoded} = IdentityResponse.encode(response)
 
-      # Type (0x01) + request_id (little endian) + version + device_id + config_id (little endian)
-      assert encoded == <<0x01, 0x78, 0x56, 0x34, 0x12, 0x01, 0x42, 0xEF, 0xBE, 0xAD, 0xDE>>
+      # Type (0x01) + request_id (little endian) + major + minor + patch + config_id (little endian)
+      assert encoded == <<0x01, 0x78, 0x56, 0x34, 0x12, 0x01, 0x02, 0x03, 0xEF, 0xBE, 0xAD, 0xDE>>
     end
 
     test "decode decodes valid message" do
-      binary = <<0x01, 0x78, 0x56, 0x34, 0x12, 0x01, 0x42, 0xEF, 0xBE, 0xAD, 0xDE>>
+      binary = <<0x01, 0x78, 0x56, 0x34, 0x12, 0x01, 0x02, 0x03, 0xEF, 0xBE, 0xAD, 0xDE>>
       {:ok, decoded} = IdentityResponse.decode(binary)
 
       assert decoded == %IdentityResponse{
                request_id: 0x12345678,
-               version: 0x01,
-               device_id: 0x42,
+               version: "1.2.3",
                config_id: 0xDEADBEEF
              }
     end
 
     test "decode returns error for invalid message type" do
       assert IdentityResponse.decode(
-               <<0x00, 0x78, 0x56, 0x34, 0x12, 0x01, 0x42, 0xEF, 0xBE, 0xAD, 0xDE>>
+               <<0x00, 0x78, 0x56, 0x34, 0x12, 0x01, 0x02, 0x03, 0xEF, 0xBE, 0xAD, 0xDE>>
              ) == {:error, :invalid_message}
     end
 
@@ -94,8 +92,7 @@ defmodule TswIo.Serial.ProtocolTest do
     test "roundtrip encode/decode" do
       original = %IdentityResponse{
         request_id: 0x12345678,
-        version: 0x01,
-        device_id: 0x42,
+        version: "1.2.3",
         config_id: 0xDEADBEEF
       }
 
@@ -351,13 +348,12 @@ defmodule TswIo.Serial.ProtocolTest do
     end
 
     test "decodes IdentityResponse" do
-      binary = <<0x01, 0x78, 0x56, 0x34, 0x12, 0x01, 0x42, 0xEF, 0xBE, 0xAD, 0xDE>>
+      binary = <<0x01, 0x78, 0x56, 0x34, 0x12, 0x01, 0x02, 0x03, 0xEF, 0xBE, 0xAD, 0xDE>>
       {:ok, decoded} = Message.decode(binary)
 
       assert decoded == %IdentityResponse{
                request_id: 0x12345678,
-               version: 0x01,
-               device_id: 0x42,
+               version: "1.2.3",
                config_id: 0xDEADBEEF
              }
     end
@@ -430,8 +426,7 @@ defmodule TswIo.Serial.ProtocolTest do
         %IdentityRequest{request_id: 0x12345678},
         %IdentityResponse{
           request_id: 0x12345678,
-          version: 0x01,
-          device_id: 0x42,
+          version: "1.2.3",
           config_id: 0xDEADBEEF
         },
         %Configure{

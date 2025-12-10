@@ -109,15 +109,13 @@ defmodule TswIo.SerialTestHelpers do
 
   ## Options
   - `:request_id` - Request ID (default: 123)
-  - `:device_id` - Device ID (default: 1)
-  - `:version` - Firmware version (default: 100)
+  - `:version` - Firmware version as "MAJOR.MINOR.PATCH" (default: "1.0.0")
   - `:config_id` - Configuration ID (default: 0)
   """
   def build_identity_response(opts \\ []) do
     %IdentityResponse{
       request_id: Keyword.get(opts, :request_id, 123),
-      device_id: Keyword.get(opts, :device_id, 1),
-      version: Keyword.get(opts, :version, 100),
+      version: Keyword.get(opts, :version, "1.0.0"),
       config_id: Keyword.get(opts, :config_id, 0)
     }
   end

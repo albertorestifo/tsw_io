@@ -105,9 +105,10 @@ defmodule TswIo.Firmware.BoardConfigTest do
       configs = BoardConfig.all_configs()
 
       assert length(configs) == 7
+
       assert Enum.all?(configs, fn {type, config} ->
-        is_atom(type) and is_map(config) and Map.has_key?(config, :name)
-      end)
+               is_atom(type) and is_map(config) and Map.has_key?(config, :name)
+             end)
     end
 
     test "all configs have required fields" do
@@ -127,9 +128,10 @@ defmodule TswIo.Firmware.BoardConfigTest do
       options = BoardConfig.select_options()
 
       assert length(options) == 7
+
       assert Enum.all?(options, fn {name, type} ->
-        is_binary(name) and is_atom(type)
-      end)
+               is_binary(name) and is_atom(type)
+             end)
     end
 
     test "options are sorted alphabetically by name" do

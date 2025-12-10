@@ -20,7 +20,8 @@ defmodule TswIo.Firmware.FirmwareFileTest do
       attrs = %{
         firmware_release_id: release.id,
         board_type: :uno,
-        download_url: "https://github.com/albertorestifo/tsw_board/releases/download/v1.0.0/tws-io-arduino-uno.hex"
+        download_url:
+          "https://github.com/albertorestifo/tsw_board/releases/download/v1.0.0/tws-io-arduino-uno.hex"
       }
 
       changeset = FirmwareFile.changeset(%FirmwareFile{}, attrs)
@@ -96,7 +97,15 @@ defmodule TswIo.Firmware.FirmwareFileTest do
     test "accepts all valid board types" do
       release = create_release()
 
-      board_types = [:uno, :nano, :nano_old_bootloader, :leonardo, :micro, :mega2560, :sparkfun_pro_micro]
+      board_types = [
+        :uno,
+        :nano,
+        :nano_old_bootloader,
+        :leonardo,
+        :micro,
+        :mega2560,
+        :sparkfun_pro_micro
+      ]
 
       for board_type <- board_types do
         attrs = %{

@@ -28,7 +28,7 @@ defmodule TswIo.Serial.Connection.DeviceConnection do
           pid: pid() | nil,
           failed_at: integer() | nil,
           device_config_id: integer() | nil,
-          device_version: integer() | nil,
+          device_version: String.t() | nil,
           upload_token: String.t() | nil
         }
 
