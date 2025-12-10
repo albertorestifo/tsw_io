@@ -11,6 +11,30 @@ Guide for developers contributing to TWS IO.
 - Node.js (for asset compilation)
 - SQLite3
 
+### Optional: Firmware Upload Support
+
+To use the firmware upload feature during development, you need to install avrdude:
+
+**macOS:**
+```bash
+brew install avrdude
+```
+
+**Linux (Debian/Ubuntu):**
+```bash
+sudo apt-get install avrdude
+```
+
+**Linux (Fedora):**
+```bash
+sudo dnf install avrdude
+```
+
+**Windows:**
+Download from [avrdudes/avrdude releases](https://github.com/avrdudes/avrdude/releases) and add to your PATH.
+
+The desktop app bundles avrdude automatically, so end users don't need to install it separately.
+
 ### Using mise (Recommended)
 
 The project includes `.mise.toml` for version management:
@@ -248,7 +272,7 @@ config :tsw_io, :serial_debug, true
 
 ## Building the Desktop App
 
-The desktop application is built using Tauri with a Burrito-packaged Elixir backend.
+The desktop application is built using Tauri with a Burrito-packaged Elixir backend. The app bundles avrdude for firmware upload functionality.
 
 ### Building for macOS (Local Development)
 
@@ -258,6 +282,7 @@ Pre-built releases are only provided for Windows. To build for macOS (Apple Sili
 
 - [mise](https://mise.jdx.dev/) - for managing tool versions
 - xz - install with `brew install xz`
+- curl - for downloading avrdude (usually pre-installed)
 
 #### Build
 
@@ -269,7 +294,19 @@ mise install
 ./scripts/build-macos.sh
 ```
 
+The build script will:
+1. Build the Elixir backend with Burrito
+2. Download avrdude for macOS ARM64
+3. Build the Tauri application with all binaries bundled
+
 The built `.dmg` and `.app` will be in `tauri/src-tauri/target/aarch64-apple-darwin/release/bundle/`.
+
+### Bundled Components
+
+The desktop app bundles:
+- **tsw_io_backend** - The Elixir application (Burrito release)
+- **avrdude** - AVR programmer for firmware uploads
+- **avrdude.conf** - Configuration file for avrdude
 
 ## Deployment
 

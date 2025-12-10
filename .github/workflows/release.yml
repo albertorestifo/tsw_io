@@ -14,6 +14,7 @@ env:
   ELIXIR_VERSION: "1.19"
   OTP_VERSION: "28"
   MIX_ENV: prod
+  AVRDUDE_VERSION: "8.1"
 
 jobs:
   build-elixir:
@@ -72,9 +73,41 @@ jobs:
           path: burrito_out/${{ matrix.binary_name }}
           retention-days: 1
 
+  download-avrdude:
+    name: Download avrdude (${{ matrix.target }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: windows_x86_64
+            avrdude_url: https://github.com/avrdudes/avrdude/releases/download/v8.1/avrdude-v8.1-windows-x64.zip
+            avrdude_binary: avrdude.exe
+            extract_cmd: unzip -o
+
+    steps:
+      - name: Download avrdude
+        run: |
+          curl -L -o avrdude-archive.zip "${{ matrix.avrdude_url }}"
+          ${{ matrix.extract_cmd }} avrdude-archive.zip
+          # Find and copy the avrdude binary
+          find . -name "${{ matrix.avrdude_binary }}" -type f | head -1 | xargs -I {} cp {} avrdude-binary
+          # Also copy avrdude.conf if it exists
+          find . -name "avrdude.conf" -type f | head -1 | xargs -I {} cp {} avrdude.conf || true
+          ls -la
+
+      - name: Upload avrdude binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: avrdude-${{ matrix.target }}
+          path: |
+            avrdude-binary
+            avrdude.conf
+          retention-days: 1
+
   build-tauri:
     name: Build Tauri (${{ matrix.target }})
-    needs: build-elixir
+    needs: [build-elixir, download-avrdude]
     runs-on: ${{ matrix.os }}
     permissions:
       contents: write
@@ -87,6 +120,7 @@ jobs:
             elixir_binary: tsw_io_desktop_windows_x86_64.exe
             tauri_target: x86_64-pc-windows-msvc
             tauri_args: ""
+            avrdude_ext: ".exe"
 
     steps:
       - name: Checkout code
@@ -98,12 +132,58 @@ jobs:
           name: elixir-${{ matrix.target }}
           path: tauri/src-tauri/binaries
 
-      - name: Prepare binary
+      - name: Download avrdude
+        uses: actions/download-artifact@v4
+        with:
+          name: avrdude-${{ matrix.target }}
+          path: tauri/src-tauri/binaries/avrdude-download
+
+      - name: Prepare binaries (Windows)
+        if: runner.os == 'Windows'
         shell: pwsh
         run: |
+          # Prepare Elixir backend binary
           Move-Item -Path "tauri/src-tauri/binaries/${{ matrix.elixir_binary }}" `
                     -Destination "tauri/src-tauri/binaries/tsw_io_backend-${{ matrix.tauri_target }}.exe"
+
+          # Prepare avrdude binary
+          Move-Item -Path "tauri/src-tauri/binaries/avrdude-download/avrdude-binary" `
+                    -Destination "tauri/src-tauri/binaries/avrdude-${{ matrix.tauri_target }}.exe"
+
+          # Copy avrdude.conf if it exists
+          if (Test-Path "tauri/src-tauri/binaries/avrdude-download/avrdude.conf") {
+            Copy-Item -Path "tauri/src-tauri/binaries/avrdude-download/avrdude.conf" `
+                      -Destination "tauri/src-tauri/binaries/"
+          }
+
+          # Clean up download folder
+          Remove-Item -Recurse -Force "tauri/src-tauri/binaries/avrdude-download"
+
           Get-ChildItem tauri/src-tauri/binaries/
+
+      - name: Prepare binaries (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          # Prepare Elixir backend binary
+          mv "tauri/src-tauri/binaries/${{ matrix.elixir_binary }}" \
+             "tauri/src-tauri/binaries/tsw_io_backend-${{ matrix.tauri_target }}"
+          chmod +x "tauri/src-tauri/binaries/tsw_io_backend-${{ matrix.tauri_target }}"
+
+          # Prepare avrdude binary
+          mv "tauri/src-tauri/binaries/avrdude-download/avrdude-binary" \
+             "tauri/src-tauri/binaries/avrdude-${{ matrix.tauri_target }}"
+          chmod +x "tauri/src-tauri/binaries/avrdude-${{ matrix.tauri_target }}"
+
+          # Copy avrdude.conf if it exists
+          if [ -f "tauri/src-tauri/binaries/avrdude-download/avrdude.conf" ]; then
+            cp "tauri/src-tauri/binaries/avrdude-download/avrdude.conf" \
+               "tauri/src-tauri/binaries/"
+          fi
+
+          # Clean up download folder
+          rm -rf "tauri/src-tauri/binaries/avrdude-download"
+
+          ls -la tauri/src-tauri/binaries/
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable

@@ -10,6 +10,7 @@ set -euo pipefail
 readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 readonly TAURI_TARGET="aarch64-apple-darwin"
+readonly AVRDUDE_VERSION="8.1"
 
 # Export for Burrito
 export BURRITO_TARGET="macos_arm64"
@@ -120,6 +121,42 @@ prepare_tauri_binary() {
     log_info "Binary prepared at: $dest"
 }
 
+download_avrdude() {
+    log_info "Downloading avrdude ${AVRDUDE_VERSION} for macOS ARM64..."
+
+    local dest_dir="$PROJECT_ROOT/tauri/src-tauri/binaries"
+    local avrdude_url="https://github.com/avrdudes/avrdude/releases/download/v${AVRDUDE_VERSION}/avrdude-v${AVRDUDE_VERSION}-macOS-arm64.tar.gz"
+    local temp_dir=$(mktemp -d)
+
+    mkdir -p "$dest_dir"
+
+    # Download and extract
+    curl -L -o "$temp_dir/avrdude.tar.gz" "$avrdude_url"
+    tar -xzf "$temp_dir/avrdude.tar.gz" -C "$temp_dir"
+
+    # Find and copy avrdude binary
+    local avrdude_bin=$(find "$temp_dir" -name "avrdude" -type f | head -1)
+    if [[ -n "$avrdude_bin" ]]; then
+        cp "$avrdude_bin" "$dest_dir/avrdude-${TAURI_TARGET}"
+        chmod +x "$dest_dir/avrdude-${TAURI_TARGET}"
+        log_info "avrdude binary prepared at: $dest_dir/avrdude-${TAURI_TARGET}"
+    else
+        log_warn "avrdude binary not found in archive"
+    fi
+
+    # Find and copy avrdude.conf
+    local avrdude_conf=$(find "$temp_dir" -name "avrdude.conf" -type f | head -1)
+    if [[ -n "$avrdude_conf" ]]; then
+        cp "$avrdude_conf" "$dest_dir/avrdude.conf"
+        log_info "avrdude.conf prepared at: $dest_dir/avrdude.conf"
+    else
+        log_warn "avrdude.conf not found in archive"
+    fi
+
+    # Cleanup
+    rm -rf "$temp_dir"
+}
+
 build_tauri_app() {
     log_info "Building Tauri application..."
 
@@ -141,6 +178,7 @@ main() {
     check_dependencies
     build_elixir_backend
     prepare_tauri_binary
+    download_avrdude
     build_tauri_app
 
     local bundle_dir="$PROJECT_ROOT/tauri/src-tauri/target/${TAURI_TARGET}/release/bundle"

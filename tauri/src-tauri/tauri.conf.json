@@ -23,7 +23,13 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
-    "externalBin": ["binaries/tsw_io_backend"],
+    "externalBin": [
+      "binaries/tsw_io_backend",
+      "binaries/avrdude"
+    ],
+    "resources": [
+      "binaries/avrdude.conf"
+    ],
     "macOS": {
       "entitlements": null,
       "minimumSystemVersion": "10.15"
