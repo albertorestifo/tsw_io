@@ -8,6 +8,24 @@ defmodule TswIo.Firmware.UpdateCheckerTest do
 
   import Ecto.Query
 
+  # Helper to start UpdateChecker for tests that need it
+  defp start_update_checker(_context) do
+    # Start the GenServer if it's not already running
+    case GenServer.whereis(UpdateChecker) do
+      nil ->
+        {:ok, _pid} = start_supervised(UpdateChecker)
+
+      _pid ->
+        :ok
+    end
+
+    # Reset state and disable automatic checks to prevent interference
+    UpdateChecker.reset_state_for_test()
+    UpdateChecker.disable_automatic_checks_for_test()
+
+    :ok
+  end
+
   describe "UpdateCheck schema" do
     test "changeset with valid attributes" do
       attrs = %{
@@ -182,8 +200,7 @@ defmodule TswIo.Firmware.UpdateCheckerTest do
   end
 
   describe "UpdateChecker GenServer public API" do
-    # Note: The UpdateChecker GenServer is started by the application.
-    # These tests verify the public API works correctly.
+    setup :start_update_checker
 
     test "get_update_status returns valid status" do
       status = UpdateChecker.get_update_status()
@@ -222,6 +239,8 @@ defmodule TswIo.Firmware.UpdateCheckerTest do
   end
 
   describe "Firmware context delegates" do
+    setup :start_update_checker
+
     test "check_update_status delegates to UpdateChecker" do
       status = Firmware.check_update_status()
 
@@ -263,6 +282,8 @@ defmodule TswIo.Firmware.UpdateCheckerTest do
   end
 
   describe "PubSub subscription" do
+    setup :start_update_checker
+
     test "subscriber receives firmware_update_dismissed event" do
       Firmware.subscribe_update_notifications()
       UpdateChecker.dismiss_notification()
@@ -312,11 +333,13 @@ defmodule TswIo.Firmware.UpdateCheckerTest do
   end
 
   describe "update status management" do
-    test "status is :no_update after dismiss" do
-      # Dismiss any existing notification
-      UpdateChecker.dismiss_notification()
-      Process.sleep(50)
+    setup :start_update_checker
 
+    test "status is :no_update after dismiss" do
+      UpdateChecker.subscribe()
+      UpdateChecker.dismiss_notification()
+      # Wait for the broadcast to confirm the cast was processed
+      assert_receive :firmware_update_dismissed, 1000
       assert UpdateChecker.get_update_status() == :no_update
     end
 

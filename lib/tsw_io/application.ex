@@ -20,12 +20,14 @@ defmodule TswIo.Application do
         TswIo.Hardware.ConfigurationManager,
         TswIo.Hardware.Calibration.SessionSupervisor,
         TswIo.Firmware.UploadManager,
-        TswIo.Firmware.UpdateChecker,
         TswIo.Train.Detection,
         TswIo.Train.Calibration.SessionSupervisor,
         # Start to serve requests, typically the last entry
         TswIoWeb.Endpoint
-      ] ++ simulator_connection_child() ++ lever_controller_child()
+      ] ++
+        simulator_connection_child() ++
+        lever_controller_child() ++
+        update_checker_child()
 
     # See https://hexdocs.pm/elixir/Supervisor.html
     # for other strategies and supported options
@@ -65,6 +67,18 @@ defmodule TswIo.Application do
   defp lever_controller_child do
     if Application.get_env(:tsw_io, :start_lever_controller, true) do
       [TswIo.Train.LeverController]
+    else
+      []
+    end
+  end
+
+  # Returns the UpdateChecker child spec only in non-test environments.
+  # In test, this GenServer performs automatic periodic checks and retains
+  # state across tests, making it difficult to test in isolation. Tests that
+  # need UpdateChecker can start it manually with proper setup/cleanup.
+  defp update_checker_child do
+    if Application.get_env(:tsw_io, :start_update_checker, true) do
+      [TswIo.Firmware.UpdateChecker]
     else
       []
     end

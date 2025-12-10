@@ -21,15 +21,53 @@ defmodule TswIo.Firmware do
   defdelegate check_for_updates(), to: TswIo.Firmware.Downloader
   defdelegate download_firmware(firmware_file_id), to: TswIo.Firmware.Downloader
 
-  # Delegate update check operations to UpdateChecker
-  defdelegate check_update_status(), to: TswIo.Firmware.UpdateChecker, as: :get_update_status
+  # Update check operations
 
-  defdelegate dismiss_update_notification(),
-    to: TswIo.Firmware.UpdateChecker,
-    as: :dismiss_notification
+  @doc """
+  Get the current update status.
 
-  defdelegate subscribe_update_notifications(), to: TswIo.Firmware.UpdateChecker, as: :subscribe
-  defdelegate trigger_update_check(), to: TswIo.Firmware.UpdateChecker, as: :check_now
+  Returns `:no_update` if UpdateChecker is not running (e.g., in tests).
+  """
+  @spec check_update_status() :: {:update_available, String.t()} | :no_update
+  def check_update_status do
+    TswIo.Firmware.UpdateChecker.get_update_status()
+  catch
+    :exit, {:noproc, _} -> :no_update
+  end
+
+  @doc """
+  Dismiss the update notification.
+
+  Returns `:ok` even if UpdateChecker is not running.
+  """
+  @spec dismiss_update_notification() :: :ok
+  def dismiss_update_notification do
+    TswIo.Firmware.UpdateChecker.dismiss_notification()
+  catch
+    :exit, {:noproc, _} -> :ok
+  end
+
+  @doc """
+  Subscribe to update notification events.
+
+  Returns `{:error, :not_running}` if UpdateChecker is not running.
+  """
+  @spec subscribe_update_notifications() :: :ok | {:error, term()}
+  def subscribe_update_notifications do
+    TswIo.Firmware.UpdateChecker.subscribe()
+  end
+
+  @doc """
+  Trigger a manual update check.
+
+  Returns `:ok` even if UpdateChecker is not running.
+  """
+  @spec trigger_update_check() :: :ok
+  def trigger_update_check do
+    TswIo.Firmware.UpdateChecker.check_now()
+  catch
+    :exit, {:noproc, _} -> :ok
+  end
 
   # Re-export BoardConfig functions for convenience
   defdelegate board_types(), to: BoardConfig

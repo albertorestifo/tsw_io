@@ -104,6 +104,18 @@ defmodule TswIo.Firmware.UpdateChecker do
     Phoenix.PubSub.subscribe(TswIo.PubSub, @pubsub_topic)
   end
 
+  # Test Helpers
+
+  @doc false
+  def reset_state_for_test do
+    GenServer.call(__MODULE__, :reset_state_for_test)
+  end
+
+  @doc false
+  def disable_automatic_checks_for_test do
+    GenServer.call(__MODULE__, :disable_automatic_checks)
+  end
+
   # Server Callbacks
 
   @impl true
@@ -141,6 +153,28 @@ defmodule TswIo.Firmware.UpdateChecker do
       end
 
     {:reply, response, state}
+  end
+
+  @impl true
+  def handle_call(:reset_state_for_test, _from, %State{} = state) do
+    new_state = %{
+      state
+      | update_available: false,
+        latest_version: nil,
+        checking: false
+    }
+
+    {:reply, :ok, new_state}
+  end
+
+  @impl true
+  def handle_call(:disable_automatic_checks, _from, %State{} = state) do
+    # Set last_check_at to a far future time to prevent automatic checks
+    far_future = DateTime.utc_now() |> DateTime.add(365, :day)
+
+    new_state = %{state | last_check_at: far_future}
+
+    {:reply, :ok, new_state}
   end
 
   @impl true
