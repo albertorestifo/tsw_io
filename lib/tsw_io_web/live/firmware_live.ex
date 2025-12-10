@@ -33,8 +33,8 @@ defmodule TswIoWeb.FirmwareLive do
      |> assign(:upload_history, upload_history)
      |> assign(:current_upload, current_upload)
      |> assign(:checking_updates, false)
-     |> assign(:downloading, nil)
-     |> assign(:selected_device, nil)
+     |> assign(:selected_release, nil)
+     |> assign(:selected_port, nil)
      |> assign(:selected_board_type, nil)
      |> assign(:show_upload_modal, false)
      |> assign(:upload_progress, nil)
@@ -140,33 +140,14 @@ defmodule TswIoWeb.FirmwareLive do
   end
 
   @impl true
-  def handle_event("download_firmware", %{"file-id" => file_id_str}, socket) do
-    file_id = String.to_integer(file_id_str)
-    socket = assign(socket, :downloading, file_id)
+  def handle_event("show_upload_modal", %{"release-id" => release_id_str}, socket) do
+    release_id = String.to_integer(release_id_str)
+    release = Enum.find(socket.assigns.releases, &(&1.id == release_id))
 
-    case Firmware.download_firmware(file_id) do
-      {:ok, _file} ->
-        releases = Firmware.list_releases(preload: [:firmware_files])
-
-        {:noreply,
-         socket
-         |> assign(:releases, releases)
-         |> assign(:downloading, nil)
-         |> put_flash(:info, "Firmware downloaded")}
-
-      {:error, reason} ->
-        {:noreply,
-         socket
-         |> assign(:downloading, nil)
-         |> put_flash(:error, "Download failed: #{inspect(reason)}")}
-    end
-  end
-
-  @impl true
-  def handle_event("show_upload_modal", %{"port" => port}, socket) do
     {:noreply,
      socket
-     |> assign(:selected_device, port)
+     |> assign(:selected_release, release)
+     |> assign(:selected_port, nil)
      |> assign(:selected_board_type, nil)
      |> assign(:show_upload_modal, true)
      |> assign(:upload_error, nil)}
@@ -181,26 +162,37 @@ defmodule TswIoWeb.FirmwareLive do
   end
 
   @impl true
-  def handle_event("select_board_type", %{"board_type" => board_type}, socket) do
-    {:noreply, assign(socket, :selected_board_type, String.to_existing_atom(board_type))}
+  def handle_event("select_port", %{"port" => port}, socket) do
+    if port != "" do
+      {:noreply, assign(socket, :selected_port, port)}
+    else
+      {:noreply, socket}
+    end
+  end
+
+  @impl true
+  def handle_event("select_board_type", %{"board_type" => board_type_str}, socket) do
+    if board_type_str != "" do
+      board_type = String.to_atom(board_type_str)
+      {:noreply, assign(socket, :selected_board_type, board_type)}
+    else
+      {:noreply, socket}
+    end
   end
 
   @impl true
   def handle_event("start_upload", _, socket) do
-    port = socket.assigns.selected_device
+    port = socket.assigns.selected_port
     board_type = socket.assigns.selected_board_type
+    release = socket.assigns.selected_release
 
-    with {:ok, release} <- Firmware.get_latest_release(preload: [:firmware_files]),
-         {:ok, file} <- find_downloaded_file(release, board_type),
+    with {:ok, file} <- find_or_download_file(release, board_type),
          {:ok, _upload_id} <- Firmware.start_upload(port, board_type, file.id) do
       {:noreply, assign(socket, :upload_error, nil)}
     else
-      {:error, :not_found} ->
+      {:error, :no_firmware_for_board} ->
         {:noreply,
-         assign(socket, :upload_error, "No firmware releases available. Check for updates first.")}
-
-      {:error, :firmware_not_downloaded} ->
-        {:noreply, assign(socket, :upload_error, "Please download the firmware first.")}
+         assign(socket, :upload_error, "No firmware available for this board type.")}
 
       {:error, reason} ->
         {:noreply, assign(socket, :upload_error, "Failed to start upload: #{inspect(reason)}")}
@@ -224,13 +216,25 @@ defmodule TswIoWeb.FirmwareLive do
     {:noreply, assign(socket, :show_older_releases, !socket.assigns.show_older_releases)}
   end
 
-  defp find_downloaded_file(release, board_type) do
-    case Enum.find(
-           release.firmware_files,
-           &(&1.board_type == board_type && FirmwareFile.downloaded?(&1))
-         ) do
-      nil -> {:error, :firmware_not_downloaded}
-      file -> {:ok, file}
+  defp find_or_download_file(release, board_type) do
+    case Enum.find(release.firmware_files, &(&1.board_type == board_type)) do
+      nil ->
+        {:error, :no_firmware_for_board}
+
+      file ->
+        # Always fetch fresh from DB to ensure we have current file_path
+        case Firmware.get_firmware_file(file.id) do
+          {:ok, fresh_file} ->
+            if FirmwareFile.downloaded?(fresh_file) do
+              {:ok, fresh_file}
+            else
+              # Auto-download the firmware - returns the updated file record
+              Firmware.download_firmware(file.id)
+            end
+
+          error ->
+            error
+        end
     end
   end
 
@@ -239,12 +243,10 @@ defmodule TswIoWeb.FirmwareLive do
     # Get all available serial ports and merge with tracked device info
     all_ports = Connection.enumerate_ports()
 
-    available_devices =
+    available_ports =
       Enum.map(all_ports, fn port ->
-        case Enum.find(assigns.nav_devices, &(&1.port == port)) do
-          nil -> %{port: port, status: :available, device_version: nil}
-          device -> device
-        end
+        device = Enum.find(assigns.nav_devices, &(&1.port == port))
+        {port, device}
       end)
 
     # Split releases into latest and older
@@ -256,7 +258,7 @@ defmodule TswIoWeb.FirmwareLive do
 
     assigns =
       assigns
-      |> assign(:available_devices, available_devices)
+      |> assign(:available_ports, available_ports)
       |> assign(:latest_release, latest_release)
       |> assign(:older_releases, older_releases)
 
@@ -301,12 +303,7 @@ defmodule TswIoWeb.FirmwareLive do
               <h2 class="text-lg font-medium mb-4">Available Releases</h2>
               <div class="space-y-4">
                 <%!-- Latest release with emphasis --%>
-                <.release_card
-                  :if={@latest_release}
-                  release={@latest_release}
-                  downloading={@downloading}
-                  is_latest={true}
-                />
+                <.release_card :if={@latest_release} release={@latest_release} is_latest={true} />
 
                 <%!-- Older releases in collapsible section --%>
                 <div :if={not Enum.empty?(@older_releases)}>
@@ -338,23 +335,11 @@ defmodule TswIoWeb.FirmwareLive do
                       <.release_card
                         :for={release <- @older_releases}
                         release={release}
-                        downloading={@downloading}
                         is_latest={false}
                       />
                     </div>
                   </div>
                 </div>
-              </div>
-            </section>
-
-            <section :if={not Enum.empty?(@available_devices)}>
-              <h2 class="text-lg font-medium mb-4">Available Devices</h2>
-              <div class="space-y-3">
-                <.device_card
-                  :for={device <- @available_devices}
-                  device={device}
-                  current_upload={@current_upload}
-                />
               </div>
             </section>
 
@@ -368,9 +353,10 @@ defmodule TswIoWeb.FirmwareLive do
 
       <.upload_modal
         :if={@show_upload_modal}
-        device={@selected_device}
+        release={@selected_release}
+        available_ports={@available_ports}
+        selected_port={@selected_port}
         board_type={@selected_board_type}
-        releases={@releases}
         progress={@upload_progress}
         error={@upload_error}
         current_upload={@current_upload}
@@ -394,19 +380,31 @@ defmodule TswIoWeb.FirmwareLive do
   end
 
   attr :release, :map, required: true
-  attr :downloading, :any, required: true
   attr :is_latest, :boolean, default: false
 
   defp release_card(assigns) do
+    # Get board names for display
+    board_names =
+      assigns.release.firmware_files
+      |> Enum.map(fn file ->
+        case BoardConfig.get_config(file.board_type) do
+          {:ok, config} -> config.name
+          _ -> to_string(file.board_type)
+        end
+      end)
+      |> Enum.sort()
+
+    assigns = assign(assigns, :board_names, board_names)
+
     ~H"""
     <div class={[
-      "border rounded-xl p-5",
+      "border rounded-xl overflow-hidden",
       if(@is_latest,
         do: "border-2 border-primary/30 bg-base-200/80 shadow-lg shadow-primary/5 p-6",
-        else: "border-base-300 bg-base-200/50"
+        else: "border-base-300 bg-base-200/50 p-5"
       )
     ]}>
-      <div class="flex items-start justify-between gap-4 mb-4">
+      <div class="flex items-start justify-between gap-4">
         <div>
           <div class="flex items-center gap-2">
             <h3 class="font-medium">v{@release.version}</h3>
@@ -416,113 +414,28 @@ defmodule TswIoWeb.FirmwareLive do
           <p :if={@release.published_at} class="text-xs text-base-content/60 mt-1">
             Released {Calendar.strftime(@release.published_at, "%B %d, %Y")}
           </p>
-        </div>
-        <a
-          :if={@release.release_url}
-          href={@release.release_url}
-          target="_blank"
-          class="btn btn-ghost btn-xs"
-        >
-          <.icon name="hero-arrow-top-right-on-square" class="w-3 h-3" /> View on GitHub
-        </a>
-      </div>
-
-      <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
-        <.board_file_button
-          :for={file <- @release.firmware_files}
-          file={file}
-          downloading={@downloading == file.id}
-        />
-      </div>
-    </div>
-    """
-  end
-
-  attr :file, :map, required: true
-  attr :downloading, :boolean, required: true
-
-  defp board_file_button(assigns) do
-    {:ok, config} = BoardConfig.get_config(assigns.file.board_type)
-    downloaded = FirmwareFile.downloaded?(assigns.file)
-    assigns = assign(assigns, config: config, downloaded: downloaded)
-
-    ~H"""
-    <button
-      phx-click="download_firmware"
-      phx-value-file-id={@file.id}
-      disabled={@downloading || @downloaded}
-      class={[
-        "btn btn-sm justify-start",
-        if(@downloaded, do: "btn-success", else: "btn-outline")
-      ]}
-    >
-      <.icon
-        :if={@downloading}
-        name="hero-arrow-path"
-        class="w-3 h-3 animate-spin"
-      />
-      <.icon
-        :if={@downloaded && !@downloading}
-        name="hero-check"
-        class="w-3 h-3"
-      />
-      <.icon
-        :if={!@downloaded && !@downloading}
-        name="hero-arrow-down-tray"
-        class="w-3 h-3"
-      />
-      <span class="truncate">{@config.name}</span>
-    </button>
-    """
-  end
-
-  attr :device, :map, required: true
-  attr :current_upload, :any, required: true
-
-  defp device_card(assigns) do
-    uploading = assigns.current_upload && assigns.current_upload.port == assigns.device.port
-
-    {status_color, status_class, status_text} =
-      case assigns.device.status do
-        :connected -> {"bg-success", "animate-pulse", "Connected"}
-        :connecting -> {"bg-warning", "animate-pulse", "Connecting..."}
-        :discovering -> {"bg-warning", "animate-pulse", "Discovering..."}
-        :failed -> {"bg-error", "", "Failed"}
-        :available -> {"bg-base-300", "", "Available"}
-        _ -> {"bg-base-300", "", "Unknown"}
-      end
-
-    assigns =
-      assigns
-      |> assign(:uploading, uploading)
-      |> assign(:status_color, status_color)
-      |> assign(:status_class, status_class)
-      |> assign(:status_text, status_text)
-
-    ~H"""
-    <div class="border border-base-300 rounded-lg bg-base-200/50 p-4 flex items-center justify-between">
-      <div class="flex items-center gap-3">
-        <div class={["w-2 h-2 rounded-full", @status_color, @status_class]} />
-        <div>
-          <p class="font-mono text-sm">{@device.port}</p>
-          <p class="text-xs text-base-content/60">
-            {if @device.device_version,
-              do: "Firmware v#{@device.device_version}",
-              else: @status_text}
+          <p class="text-xs text-base-content/50 mt-2">
+            Supported boards: {Enum.join(@board_names, ", ")}
           </p>
         </div>
+        <div class="flex gap-2 items-center shrink-0">
+          <button
+            phx-click="show_upload_modal"
+            phx-value-release-id={@release.id}
+            class={["btn btn-sm", if(@is_latest, do: "btn-primary", else: "btn-outline")]}
+          >
+            <.icon name="hero-arrow-up-tray" class="w-4 h-4" /> Upload to Device
+          </button>
+          <a
+            :if={@release.release_url}
+            href={@release.release_url}
+            target="_blank"
+            class="btn btn-ghost btn-sm"
+          >
+            <.icon name="hero-arrow-top-right-on-square" class="w-3 h-3" />
+          </a>
+        </div>
       </div>
-      <button
-        :if={!@uploading}
-        phx-click="show_upload_modal"
-        phx-value-port={@device.port}
-        class="btn btn-sm btn-outline"
-      >
-        <.icon name="hero-arrow-up-tray" class="w-4 h-4" /> Update Firmware
-      </button>
-      <span :if={@uploading} class="badge badge-warning">
-        <.icon name="hero-arrow-path" class="w-3 h-3 animate-spin mr-1" /> Uploading...
-      </span>
     </div>
     """
   end
@@ -580,9 +493,10 @@ defmodule TswIoWeb.FirmwareLive do
     """
   end
 
-  attr :device, :string, required: true
+  attr :release, :map, required: true
+  attr :available_ports, :list, required: true
+  attr :selected_port, :string, required: true
   attr :board_type, :atom, required: true
-  attr :releases, :list, required: true
   attr :progress, :map, required: true
   attr :error, :string, required: true
   attr :current_upload, :any, required: true
@@ -590,7 +504,13 @@ defmodule TswIoWeb.FirmwareLive do
   defp upload_modal(assigns) do
     board_options = BoardConfig.select_options()
     uploading = assigns.current_upload != nil
-    assigns = assign(assigns, board_options: board_options, uploading: uploading)
+    no_ports = Enum.empty?(assigns.available_ports)
+
+    assigns =
+      assigns
+      |> assign(:board_options, board_options)
+      |> assign(:uploading, uploading)
+      |> assign(:no_ports, no_ports)
 
     ~H"""
     <div class="modal modal-open">
@@ -603,21 +523,55 @@ defmodule TswIoWeb.FirmwareLive do
           <.icon name="hero-x-mark" class="w-4 h-4" />
         </button>
 
-        <h3 class="font-bold text-lg">Update Firmware</h3>
+        <h3 class="font-bold text-lg">Upload Firmware</h3>
         <p class="text-sm text-base-content/70 mt-1">
-          Device: <span class="font-mono">{@device}</span>
+          Version: <span class="font-semibold">v{@release.version}</span>
         </p>
 
-        <div :if={!@uploading} class="mt-4 space-y-4">
-          <div class="form-control">
+        <%!-- No devices available state --%>
+        <div :if={@no_ports && !@uploading} class="mt-6 text-center py-8">
+          <.icon name="hero-exclamation-circle" class="w-12 h-12 text-warning mx-auto" />
+          <h4 class="font-medium mt-4">No Devices Available</h4>
+          <p class="text-sm text-base-content/70 mt-2">
+            Connect a device via USB and scan for ports.
+          </p>
+          <button phx-click="nav_scan_devices" class="btn btn-sm btn-primary mt-4">
+            <.icon name="hero-arrow-path" class="w-4 h-4" /> Scan for Devices
+          </button>
+        </div>
+
+        <div :if={!@no_ports && !@uploading} class="mt-4 space-y-4">
+          <%!-- Port selection --%>
+          <form phx-change="select_port" class="form-control">
             <label class="label">
-              <span class="label-text">Board Type</span>
+              <span class="label-text font-medium">Serial Port</span>
             </label>
-            <select
-              phx-change="select_board_type"
-              name="board_type"
-              class="select select-bordered w-full"
-            >
+            <select name="port" class="select select-bordered w-full">
+              <option value="" disabled selected={@selected_port == nil}>
+                Select your device
+              </option>
+              <option
+                :for={{port, device} <- @available_ports}
+                value={port}
+                selected={@selected_port == port}
+              >
+                {port}
+                {if device && device.device_version, do: " - v#{device.device_version}", else: ""}
+              </option>
+            </select>
+            <label class="label">
+              <span class="label-text-alt text-base-content/60">
+                Select the port your device is connected to
+              </span>
+            </label>
+          </form>
+
+          <%!-- Board type selection --%>
+          <form phx-change="select_board_type" class="form-control">
+            <label class="label">
+              <span class="label-text font-medium">Board Type</span>
+            </label>
+            <select name="board_type" class="select select-bordered w-full">
               <option value="" disabled selected={@board_type == nil}>
                 Select your board type
               </option>
@@ -634,7 +588,7 @@ defmodule TswIoWeb.FirmwareLive do
                 Make sure this matches your physical board
               </span>
             </label>
-          </div>
+          </form>
 
           <div :if={@error} class="alert alert-error">
             <.icon name="hero-exclamation-triangle" class="w-5 h-5" />
@@ -669,7 +623,7 @@ defmodule TswIoWeb.FirmwareLive do
           </progress>
 
           <p class="text-center text-xs text-base-content/60">
-            Do not disconnect the device
+            Uploading to <span class="font-mono">{@selected_port}</span> - Do not disconnect
           </p>
         </div>
 
@@ -682,9 +636,9 @@ defmodule TswIoWeb.FirmwareLive do
             Cancel
           </button>
           <button
-            :if={!@uploading}
+            :if={!@uploading && !@no_ports}
             phx-click="start_upload"
-            disabled={@board_type == nil}
+            disabled={@selected_port == nil or @board_type == nil}
             class="btn btn-primary"
           >
             <.icon name="hero-arrow-up-tray" class="w-4 h-4" /> Start Upload
