@@ -23,14 +23,6 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: macos-14
-            target: macos_arm64
-            binary_name: tsw_io_desktop_macos_arm64
-            tauri_target: aarch64-apple-darwin
-          - os: ubuntu-22.04
-            target: linux_x86_64
-            binary_name: tsw_io_desktop_linux_x86_64
-            tauri_target: x86_64-unknown-linux-gnu
           - os: windows-2022
             target: windows_x86_64
             binary_name: tsw_io_desktop_windows_x86_64.exe
@@ -46,18 +38,7 @@ jobs:
           elixir-version: ${{ env.ELIXIR_VERSION }}
           otp-version: ${{ env.OTP_VERSION }}
 
-      - name: Install Linux build dependencies
-        if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y build-essential xz-utils
-
-      - name: Install macOS build dependencies
-        if: runner.os == 'macOS'
-        run: brew install xz
-
       - name: Install Windows build dependencies
-        if: runner.os == 'Windows'
         run: choco install 7zip -y
 
       - name: Setup Zig
@@ -103,16 +84,6 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: macos-14
-            target: macos_arm64
-            elixir_binary: tsw_io_desktop_macos_arm64
-            tauri_target: aarch64-apple-darwin
-            tauri_args: --target aarch64-apple-darwin
-          - os: ubuntu-22.04
-            target: linux_x86_64
-            elixir_binary: tsw_io_desktop_linux_x86_64
-            tauri_target: x86_64-unknown-linux-gnu
-            tauri_args: ""
           - os: windows-2022
             target: windows_x86_64
             elixir_binary: tsw_io_desktop_windows_x86_64.exe
@@ -129,31 +100,12 @@ jobs:
           name: elixir-${{ matrix.target }}
           path: tauri/src-tauri/binaries
 
-      - name: Prepare binary (Unix)
-        if: runner.os != 'Windows'
-        run: |
-          mv tauri/src-tauri/binaries/${{ matrix.elixir_binary }} \
-             tauri/src-tauri/binaries/tsw_io_backend-${{ matrix.tauri_target }}
-          chmod +x tauri/src-tauri/binaries/tsw_io_backend-${{ matrix.tauri_target }}
-          ls -la tauri/src-tauri/binaries/
-
-      - name: Prepare binary (Windows)
-        if: runner.os == 'Windows'
+      - name: Prepare binary
         shell: pwsh
         run: |
           Move-Item -Path "tauri/src-tauri/binaries/${{ matrix.elixir_binary }}" `
                     -Destination "tauri/src-tauri/binaries/tsw_io_backend-${{ matrix.tauri_target }}.exe"
           Get-ChildItem tauri/src-tauri/binaries/
-
-      - name: Install Linux dependencies
-        if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            libwebkit2gtk-4.1-dev \
-            libappindicator3-dev \
-            librsvg2-dev \
-            patchelf
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
