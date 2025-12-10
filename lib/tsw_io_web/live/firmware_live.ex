@@ -38,7 +38,8 @@ defmodule TswIoWeb.FirmwareLive do
      |> assign(:selected_board_type, nil)
      |> assign(:show_upload_modal, false)
      |> assign(:upload_progress, nil)
-     |> assign(:upload_error, nil)}
+     |> assign(:upload_error, nil)
+     |> assign(:show_older_releases, false)}
   end
 
   @impl true
@@ -218,6 +219,11 @@ defmodule TswIoWeb.FirmwareLive do
     end
   end
 
+  @impl true
+  def handle_event("toggle_older_releases", _, socket) do
+    {:noreply, assign(socket, :show_older_releases, !socket.assigns.show_older_releases)}
+  end
+
   defp find_downloaded_file(release, board_type) do
     case Enum.find(
            release.firmware_files,
@@ -230,11 +236,29 @@ defmodule TswIoWeb.FirmwareLive do
 
   @impl true
   def render(assigns) do
-    connected_devices =
-      assigns.nav_devices
-      |> Enum.filter(&(&1.status == :connected))
+    # Get all available serial ports and merge with tracked device info
+    all_ports = Connection.enumerate_ports()
 
-    assigns = assign(assigns, :connected_devices, connected_devices)
+    available_devices =
+      Enum.map(all_ports, fn port ->
+        case Enum.find(assigns.nav_devices, &(&1.port == port)) do
+          nil -> %{port: port, status: :available, device_version: nil}
+          device -> device
+        end
+      end)
+
+    # Split releases into latest and older
+    {latest_release, older_releases} =
+      case assigns.releases do
+        [latest | older] -> {latest, older}
+        [] -> {nil, []}
+      end
+
+    assigns =
+      assigns
+      |> assign(:available_devices, available_devices)
+      |> assign(:latest_release, latest_release)
+      |> assign(:older_releases, older_releases)
 
     ~H"""
     <div class="min-h-screen flex flex-col">
@@ -276,19 +300,58 @@ defmodule TswIoWeb.FirmwareLive do
             <section>
               <h2 class="text-lg font-medium mb-4">Available Releases</h2>
               <div class="space-y-4">
+                <%!-- Latest release with emphasis --%>
                 <.release_card
-                  :for={release <- @releases}
-                  release={release}
+                  :if={@latest_release}
+                  release={@latest_release}
                   downloading={@downloading}
+                  is_latest={true}
                 />
+
+                <%!-- Older releases in collapsible section --%>
+                <div :if={not Enum.empty?(@older_releases)}>
+                  <button
+                    phx-click="toggle_older_releases"
+                    class="btn btn-ghost btn-sm w-full justify-start text-base-content/70 hover:text-base-content"
+                  >
+                    <.icon
+                      name="hero-chevron-down"
+                      class={
+                        "w-4 h-4 transition-transform duration-150 #{if @show_older_releases, do: "rotate-180", else: ""}"
+                      }
+                    />
+                    {if @show_older_releases,
+                      do: "Hide older releases",
+                      else: "Show #{length(@older_releases)} older release#{if length(@older_releases) > 1, do: "s", else: ""}"}
+                  </button>
+
+                  <div
+                    class={[
+                      "overflow-hidden transition-all duration-150 ease-in-out",
+                      if(@show_older_releases,
+                        do: "max-h-[2000px] opacity-100 mt-4",
+                        else: "max-h-0 opacity-0"
+                      )
+                    ]}
+                  >
+                    <div class="space-y-4">
+                      <.release_card
+                        :for={release <- @older_releases}
+                        release={release}
+                        downloading={@downloading}
+                        is_latest={false}
+                      />
+                    </div>
+                  </div>
+                </div>
               </div>
             </section>
 
-            <section :if={not Enum.empty?(@connected_devices)}>
-              <h2 class="text-lg font-medium mb-4">Connected Devices</h2>
+            <section :if={not Enum.empty?(@available_devices)}>
+              <h2 class="text-lg font-medium mb-4">Available Devices</h2>
               <div class="space-y-3">
                 <.device_card
-                  :for={device <- @connected_devices}
+                  :for={device <- @available_devices}
                   device={device}
                   current_upload={@current_upload}
                 />
@@ -332,15 +395,23 @@ defmodule TswIoWeb.FirmwareLive do
 
   attr :release, :map, required: true
   attr :downloading, :any, required: true
+  attr :is_latest, :boolean, default: false
 
   defp release_card(assigns) do
     ~H"""
-    <div class="border border-base-300 rounded-xl bg-base-200/50 p-5">
+    <div class={[
+      "border rounded-xl p-5",
+      if(@is_latest,
+        do: "border-2 border-primary/30 bg-base-200/80 shadow-lg shadow-primary/5 p-6",
+        else: "border-base-300 bg-base-200/50"
+      )
+    ]}>
       <div class="flex items-start justify-between gap-4 mb-4">
         <div>
           <div class="flex items-center gap-2">
             <h3 class="font-medium">v{@release.version}</h3>
             <span class="badge badge-ghost badge-sm">{@release.tag_name}</span>
+            <span :if={@is_latest} class="badge badge-success badge-sm">Latest</span>
           </div>
           <p :if={@release.published_at} class="text-xs text-base-content/60 mt-1">
             Released {Calendar.strftime(@release.published_at, "%B %d, %Y")}
@@ -410,16 +481,34 @@ defmodule TswIoWeb.FirmwareLive do
 
   defp device_card(assigns) do
     uploading = assigns.current_upload && assigns.current_upload.port == assigns.device.port
-    assigns = assign(assigns, :uploading, uploading)
+
+    {status_color, status_class, status_text} =
+      case assigns.device.status do
+        :connected -> {"bg-success", "animate-pulse", "Connected"}
+        :connecting -> {"bg-warning", "animate-pulse", "Connecting..."}
+        :discovering -> {"bg-warning", "animate-pulse", "Discovering..."}
+        :failed -> {"bg-error", "", "Failed"}
+        :available -> {"bg-base-300", "", "Available"}
+        _ -> {"bg-base-300", "", "Unknown"}
+      end
+
+    assigns =
+      assigns
+      |> assign(:uploading, uploading)
+      |> assign(:status_color, status_color)
+      |> assign(:status_class, status_class)
+      |> assign(:status_text, status_text)
 
     ~H"""
     <div class="border border-base-300 rounded-lg bg-base-200/50 p-4 flex items-center justify-between">
       <div class="flex items-center gap-3">
-        <div class="w-2 h-2 rounded-full bg-success animate-pulse" />
+        <div class={["w-2 h-2 rounded-full", @status_color, @status_class]} />
         <div>
           <p class="font-mono text-sm">{@device.port}</p>
           <p class="text-xs text-base-content/60">
-            Firmware v{@device.device_version || "unknown"}
+            {if @device.device_version,
+              do: "Firmware v#{@device.device_version}",
+              else: @status_text}
           </p>
         </div>
       </div>

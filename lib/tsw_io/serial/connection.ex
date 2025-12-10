@@ -51,6 +51,19 @@ defmodule TswIo.Serial.Connection do
     GenServer.call(__MODULE__, :list_devices)
   end
 
+  @doc "Get all available serial ports (filtered by ignored patterns)"
+  @spec enumerate_ports() :: [String.t()]
+  def enumerate_ports do
+    UART.enumerate()
+    |> Map.keys()
+    |> Enum.reject(&ignored_port?/1)
+    |> Enum.sort()
+  end
+
+  defp ignored_port?(port) do
+    Enum.any?(@ignored_port_patterns, &Regex.match?(&1, port))
+  end
+
   @doc "Trigger an immediate device scan"
   @spec scan() :: :ok
   def scan do
@@ -380,10 +393,6 @@ defmodule TswIo.Serial.Connection do
         # Failed and backoff expired, should retry
         conn -> DeviceConnection.should_retry?(conn, @failed_port_backoff_ms)
       end
-  end
-
-  defp ignored_port?(port) do
-    Enum.any?(@ignored_port_patterns, &Regex.match?(&1, port))
   end
 
   defp find_port_by_pid(%State{ports: ports}, pid) do
