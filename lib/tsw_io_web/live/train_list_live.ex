@@ -93,6 +93,8 @@ defmodule TswIoWeb.TrainListLive do
       <.nav_header
         devices={@nav_devices}
         simulator_status={@nav_simulator_status}
+        firmware_update={@nav_firmware_update}
+        firmware_checking={@nav_firmware_checking}
         dropdown_open={@nav_dropdown_open}
         scanning={@nav_scanning}
         current_path={@nav_current_path}

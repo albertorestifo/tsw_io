@@ -9,6 +9,51 @@ defmodule TswIoWeb.NavComponents do
   import TswIoWeb.CoreComponents
 
   @doc """
+  Firmware update notification banner.
+
+  Displays when a new firmware version is available.
+  """
+  attr :update, :map, default: nil
+  attr :checking, :boolean, default: false
+
+  def firmware_update_banner(assigns) do
+    ~H"""
+    <div
+      :if={@update && @update.available}
+      class="bg-primary text-primary-content px-4 sm:px-8"
+      role="alert"
+    >
+      <div class="max-w-2xl mx-auto py-2 flex items-center justify-between gap-4">
+        <div class="flex items-center gap-3">
+          <.icon name="hero-arrow-down-tray" class="w-5 h-5 flex-shrink-0" />
+          <div class="text-sm">
+            <span class="font-medium">Firmware update available:</span>
+            <span class="ml-1">v{@update.version}</span>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-2">
+          <.link
+            navigate="/firmware"
+            class="btn btn-sm btn-ghost text-primary-content hover:bg-primary-content/10"
+          >
+            View Update
+          </.link>
+
+          <button
+            phx-click="dismiss_firmware_update"
+            class="btn btn-sm btn-ghost btn-circle text-primary-content hover:bg-primary-content/10"
+            aria-label="Dismiss"
+          >
+            <.icon name="hero-x-mark" class="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+    </div>
+    """
+  end
+
+  @doc """
   Persistent navigation header with status indicators.
 
   The header content is constrained to max-w-2xl to align with
@@ -16,12 +61,15 @@ defmodule TswIoWeb.NavComponents do
   """
   attr :devices, :list, required: true
   attr :simulator_status, :map, required: true
+  attr :firmware_update, :map, default: nil
+  attr :firmware_checking, :boolean, default: false
   attr :dropdown_open, :boolean, default: false
   attr :scanning, :boolean, default: false
   attr :current_path, :string, default: "/"
 
   def nav_header(assigns) do
     ~H"""
+    <.firmware_update_banner update={@firmware_update} checking={@firmware_checking} />
     <header class="bg-base-100 border-b border-base-300 sticky top-0 z-50 px-4 sm:px-8">
       <div class="max-w-2xl mx-auto py-3 flex items-center">
         <div class="flex-1 flex items-center gap-6">
@@ -62,7 +110,7 @@ defmodule TswIoWeb.NavComponents do
               />
             </button>
 
-            <.device_dropdown :if={@dropdown_open} devices={@devices} scanning={@scanning} />
+            <.device_dropdown :if={@dropdown_open} devices={@devices} scanning={@scanning} firmware_checking={@firmware_checking} />
           </div>
         </div>
       </div>
@@ -151,6 +199,7 @@ defmodule TswIoWeb.NavComponents do
   # Device dropdown component
   attr :devices, :list, required: true
   attr :scanning, :boolean, default: false
+  attr :firmware_checking, :boolean, default: false
 
   defp device_dropdown(assigns) do
     ~H"""
@@ -158,7 +207,7 @@ defmodule TswIoWeb.NavComponents do
       class="absolute top-full right-0 mt-1 w-80 bg-base-100 border border-base-300 rounded-xl shadow-xl z-50"
       phx-click-away="nav_close_dropdown"
     >
-      <div class="p-4 border-b border-base-300">
+      <div class="p-4 border-b border-base-300 space-y-2">
         <button
           phx-click="nav_scan_devices"
           disabled={@scanning}
@@ -175,6 +224,18 @@ defmodule TswIoWeb.NavComponents do
             class="w-4 h-4"
           />
           {if @scanning, do: "Scanning...", else: "Scan for Devices"}
+        </button>
+
+        <button
+          phx-click="check_firmware_updates"
+          disabled={@firmware_checking}
+          class="btn btn-ghost btn-sm w-full"
+        >
+          <.icon
+            name="hero-arrow-path"
+            class={if @firmware_checking, do: "w-4 h-4 animate-spin", else: "w-4 h-4"}
+          />
+          {if @firmware_checking, do: "Checking...", else: "Check for Firmware Updates"}
         </button>
       </div>
 

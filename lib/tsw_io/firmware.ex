@@ -21,6 +21,12 @@ defmodule TswIo.Firmware do
   defdelegate check_for_updates(), to: TswIo.Firmware.Downloader
   defdelegate download_firmware(firmware_file_id), to: TswIo.Firmware.Downloader
 
+  # Delegate update check operations to UpdateChecker
+  defdelegate check_update_status(), to: TswIo.Firmware.UpdateChecker, as: :get_update_status
+  defdelegate dismiss_update_notification(), to: TswIo.Firmware.UpdateChecker, as: :dismiss_notification
+  defdelegate subscribe_update_notifications(), to: TswIo.Firmware.UpdateChecker, as: :subscribe
+  defdelegate trigger_update_check(), to: TswIo.Firmware.UpdateChecker, as: :check_now
+
   # Re-export BoardConfig functions for convenience
   defdelegate board_types(), to: BoardConfig
   defdelegate get_board_config(board_type), to: BoardConfig, as: :get_config
