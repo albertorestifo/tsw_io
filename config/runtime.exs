@@ -75,9 +75,9 @@ if config_env() == :prod do
       (fn ->
         # Generate a stable secret based on the data directory path
         # This ensures the same key is used across restarts on the same machine
+        # SHA256 produces 32 bytes, encode16 produces 64 hex characters
         :crypto.hash(:sha256, database_path)
-        |> Base.encode64()
-        |> binary_part(0, 64)
+        |> Base.encode16(case: :lower)
       end).()
 
   host = System.get_env("PHX_HOST") || "localhost"
