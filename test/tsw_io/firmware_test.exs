@@ -40,6 +40,11 @@ defmodule TswIo.FirmwareTest do
         file_size: 22890
       })
 
+    # Preload the firmware_release association for file path calculation
+    uno_file = %{uno_file | firmware_release: release}
+    nano_file = %{nano_file | firmware_release: release}
+    leonardo_file = %{leonardo_file | firmware_release: release}
+
     {release, [uno_file, nano_file, leonardo_file]}
   end
 
@@ -255,13 +260,13 @@ defmodule TswIo.FirmwareTest do
       {_release, [uno_file | _rest]} = create_release_with_files()
 
       attrs = %{
-        file_path: "/cache/uno.hex",
-        downloaded_at: ~U[2025-12-10 12:00:00Z]
+        file_size: 12345,
+        checksum_sha256: "abc123"
       }
 
       assert {:ok, updated} = Firmware.update_firmware_file(uno_file, attrs)
-      assert updated.file_path == "/cache/uno.hex"
-      assert updated.downloaded_at
+      assert updated.file_size == 12345
+      assert updated.checksum_sha256 == "abc123"
     end
   end
 
@@ -272,16 +277,18 @@ defmodule TswIo.FirmwareTest do
       refute Firmware.firmware_downloaded?(uno_file)
     end
 
-    test "returns true when file is downloaded" do
+    test "returns true when file exists on disk" do
       {_release, [uno_file | _rest]} = create_release_with_files()
 
-      {:ok, updated} =
-        Firmware.update_firmware_file(uno_file, %{
-          file_path: "/cache/uno.hex",
-          downloaded_at: DateTime.utc_now()
-        })
+      # Create the actual file on disk
+      path = TswIo.Firmware.FilePath.firmware_path(uno_file)
+      File.mkdir_p!(Path.dirname(path))
+      File.write!(path, "test content")
 
-      assert Firmware.firmware_downloaded?(updated)
+      assert Firmware.firmware_downloaded?(uno_file)
+
+      # Cleanup
+      File.rm!(path)
     end
   end
 

@@ -74,6 +74,11 @@ defmodule TswIo.Firmware do
   defdelegate get_board_config(board_type), to: BoardConfig, as: :get_config
   defdelegate board_select_options(), to: BoardConfig, as: :select_options
 
+  # Re-export FilePath functions for convenience
+  defdelegate firmware_file_path(file), to: TswIo.Firmware.FilePath, as: :firmware_path
+  defdelegate firmware_file_path(version, board_type), to: TswIo.Firmware.FilePath, as: :firmware_path
+  defdelegate firmware_cache_dir(), to: TswIo.Firmware.FilePath, as: :cache_dir
+
   # Release operations
 
   @doc """

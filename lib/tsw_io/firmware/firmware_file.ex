@@ -18,10 +18,8 @@ defmodule TswIo.Firmware.FirmwareFile do
           firmware_release: FirmwareRelease.t() | Ecto.Association.NotLoaded.t(),
           board_type: BoardConfig.board_type() | nil,
           download_url: String.t() | nil,
-          file_path: String.t() | nil,
           file_size: integer() | nil,
           checksum_sha256: String.t() | nil,
-          downloaded_at: DateTime.t() | nil,
           inserted_at: DateTime.t() | nil,
           updated_at: DateTime.t() | nil
         }
@@ -31,10 +29,8 @@ defmodule TswIo.Firmware.FirmwareFile do
 
     field :board_type, Ecto.Enum, values: BoardConfig.board_types()
     field :download_url, :string
-    field :file_path, :string
     field :file_size, :integer
     field :checksum_sha256, :string
-    field :downloaded_at, :utc_datetime
 
     timestamps(type: :utc_datetime)
   end
@@ -49,10 +45,8 @@ defmodule TswIo.Firmware.FirmwareFile do
       :firmware_release_id,
       :board_type,
       :download_url,
-      :file_path,
       :file_size,
-      :checksum_sha256,
-      :downloaded_at
+      :checksum_sha256
     ])
     |> validate_required([:firmware_release_id, :board_type, :download_url])
     |> foreign_key_constraint(:firmware_release_id)
@@ -61,9 +55,11 @@ defmodule TswIo.Firmware.FirmwareFile do
 
   @doc """
   Returns true if this firmware file has been downloaded and cached locally.
+
+  Checks for file existence on disk rather than relying on database fields.
   """
   @spec downloaded?(t()) :: boolean()
-  def downloaded?(%__MODULE__{file_path: nil}), do: false
-  def downloaded?(%__MODULE__{downloaded_at: nil}), do: false
-  def downloaded?(%__MODULE__{}), do: true
+  def downloaded?(%__MODULE__{} = file) do
+    TswIo.Firmware.FilePath.downloaded?(file)
+  end
 end

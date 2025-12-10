@@ -217,23 +217,32 @@ defmodule TswIoWeb.FirmwareLive do
   end
 
   defp find_or_download_file(release, board_type) do
+    require Logger
+
     case Enum.find(release.firmware_files, &(&1.board_type == board_type)) do
       nil ->
         {:error, :no_firmware_for_board}
 
       file ->
-        # Always fetch fresh from DB to ensure we have current file_path
-        case Firmware.get_firmware_file(file.id) do
-          {:ok, fresh_file} ->
-            if FirmwareFile.downloaded?(fresh_file) do
-              {:ok, fresh_file}
-            else
-              # Auto-download the firmware - returns the updated file record
-              Firmware.download_firmware(file.id)
-            end
+        # Set release association for file path calculation
+        file = %{file | firmware_release: release}
 
-          error ->
-            error
+        # Check if file exists on disk
+        if FirmwareFile.downloaded?(file) do
+          Logger.debug("Firmware already downloaded")
+          {:ok, file}
+        else
+          Logger.info("Downloading firmware file #{file.id}...")
+
+          case Firmware.download_firmware(file.id) do
+            {:ok, downloaded_file} ->
+              Logger.info("Firmware downloaded successfully")
+              {:ok, downloaded_file}
+
+            {:error, reason} = error ->
+              Logger.error("Failed to download firmware: #{inspect(reason)}")
+              error
+          end
         end
     end
   end

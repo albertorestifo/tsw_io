@@ -13,7 +13,7 @@ defmodule TswIo.Firmware.UploadManager do
   require Logger
 
   alias TswIo.Firmware
-  alias TswIo.Firmware.{BoardConfig, FirmwareFile, Uploader}
+  alias TswIo.Firmware.{BoardConfig, FilePath, FirmwareFile, Uploader}
   alias TswIo.Serial.Connection
 
   @pubsub_topic "firmware:uploads"
@@ -175,7 +175,7 @@ defmodule TswIo.Firmware.UploadManager do
   # Private functions
 
   defp do_start_upload(port, board_type, firmware_file_id) do
-    with {:ok, file} <- Firmware.get_firmware_file(firmware_file_id),
+    with {:ok, file} <- Firmware.get_firmware_file(firmware_file_id, preload: [:firmware_release]),
          :ok <- verify_firmware_downloaded(file),
          {:ok, release_token} <- Connection.request_upload_access(port) do
       upload_id = generate_upload_id()
@@ -196,7 +196,8 @@ defmodule TswIo.Firmware.UploadManager do
             broadcast({:upload_progress, upload_id, percent, message})
           end
 
-          Uploader.upload(port, board_type, file.file_path, progress_callback)
+          file_path = FilePath.firmware_path(file)
+          Uploader.upload(port, board_type, file_path, progress_callback)
         end)
 
       # Schedule timeout
@@ -219,11 +220,8 @@ defmodule TswIo.Firmware.UploadManager do
     end
   end
 
-  defp verify_firmware_downloaded(%FirmwareFile{file_path: nil}),
-    do: {:error, :firmware_not_downloaded}
-
-  defp verify_firmware_downloaded(%FirmwareFile{file_path: path}) do
-    if File.exists?(path), do: :ok, else: {:error, :firmware_not_downloaded}
+  defp verify_firmware_downloaded(%FirmwareFile{} = file) do
+    if FilePath.downloaded?(file), do: :ok, else: {:error, :firmware_not_downloaded}
   end
 
   defp do_cancel_upload(upload) do

@@ -315,11 +315,10 @@ defmodule TswIo.Firmware.DownloaderTest do
         {:ok, %Req.Response{status: 200}}
       end)
 
-      assert {:ok, updated_file} = Downloader.download_firmware(uno_file.id)
+      assert {:ok, downloaded_file} = Downloader.download_firmware(uno_file.id)
 
-      assert updated_file.file_path
-      assert updated_file.downloaded_at
-      assert Firmware.firmware_downloaded?(updated_file)
+      # Verify the file exists on disk (not in DB)
+      assert TswIo.Firmware.FilePath.downloaded?(downloaded_file)
     end
 
     test "returns error for non-existent firmware file" do

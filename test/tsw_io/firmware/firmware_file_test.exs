@@ -37,10 +37,8 @@ defmodule TswIo.Firmware.FirmwareFileTest do
         firmware_release_id: release.id,
         board_type: :leonardo,
         download_url: "https://github.com/releases/download/v1.0.0/tws-io-arduino-leonardo.hex",
-        file_path: "/cache/tws-io-arduino-leonardo.hex",
         file_size: 22890,
-        checksum_sha256: "454b80bcf9612335dc07cff088ea909c232c3c960a15ff640e62eafdc8afcf47",
-        downloaded_at: ~U[2025-12-09 12:31:47Z]
+        checksum_sha256: "454b80bcf9612335dc07cff088ea909c232c3c960a15ff640e62eafdc8afcf47"
       }
 
       changeset = FirmwareFile.changeset(%FirmwareFile{}, attrs)
@@ -159,22 +157,35 @@ defmodule TswIo.Firmware.FirmwareFileTest do
   end
 
   describe "downloaded?/1" do
-    test "returns false when file_path is nil" do
-      file = %FirmwareFile{file_path: nil, downloaded_at: ~U[2025-12-09 12:00:00Z]}
+    setup do
+      release = create_release()
+      {:ok, release: release}
+    end
+
+    test "returns false when file does not exist on disk", %{release: release} do
+      file = %FirmwareFile{
+        board_type: :uno,
+        firmware_release: release
+      }
 
       refute FirmwareFile.downloaded?(file)
     end
 
-    test "returns false when downloaded_at is nil" do
-      file = %FirmwareFile{file_path: "/cache/uno.hex", downloaded_at: nil}
+    test "returns true when file exists on disk", %{release: release} do
+      file = %FirmwareFile{
+        board_type: :nano,
+        firmware_release: release
+      }
 
-      refute FirmwareFile.downloaded?(file)
-    end
-
-    test "returns true when both file_path and downloaded_at are set" do
-      file = %FirmwareFile{file_path: "/cache/uno.hex", downloaded_at: ~U[2025-12-09 12:00:00Z]}
+      # Create the actual file on disk
+      path = TswIo.Firmware.FilePath.firmware_path(file)
+      File.mkdir_p!(Path.dirname(path))
+      File.write!(path, "test content")
 
       assert FirmwareFile.downloaded?(file)
+
+      # Cleanup
+      File.rm!(path)
     end
   end
 

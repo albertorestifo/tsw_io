@@ -9,7 +9,7 @@ defmodule TswIo.Firmware.Downloader do
   require Logger
 
   alias TswIo.Firmware
-  alias TswIo.Firmware.{BoardConfig, FirmwareFile}
+  alias TswIo.Firmware.{BoardConfig, FilePath, FirmwareFile}
 
   @github_repo "albertorestifo/tsw_board"
   @github_api_url "https://api.github.com/repos/#{@github_repo}/releases"
@@ -41,18 +41,16 @@ defmodule TswIo.Firmware.Downloader do
   @doc """
   Download a firmware file to the local cache.
 
-  Returns `{:ok, firmware_file}` with updated file_path on success.
+  Returns `{:ok, firmware_file}` on success. The file is saved with a
+  predictable name based on version and board type.
   """
   @spec download_firmware(integer()) :: {:ok, FirmwareFile.t()} | {:error, term()}
   def download_firmware(firmware_file_id) do
-    with {:ok, file} <- Firmware.get_firmware_file(firmware_file_id),
-         :ok <- ensure_cache_dir(),
-         destination <- firmware_file_path(file),
+    with {:ok, file} <- Firmware.get_firmware_file(firmware_file_id, preload: [:firmware_release]),
+         :ok <- FilePath.ensure_cache_dir(),
+         destination <- FilePath.firmware_path(file),
          {:ok, _} <- download_file(file.download_url, destination) do
-      Firmware.update_firmware_file(file, %{
-        file_path: destination,
-        downloaded_at: DateTime.utc_now()
-      })
+      {:ok, file}
     end
   end
 
@@ -195,28 +193,4 @@ defmodule TswIo.Firmware.Downloader do
     end
   end
 
-  # File paths
-
-  defp firmware_cache_dir do
-    # Use priv/firmware_cache in dev, app data dir in release
-    if Application.get_env(:tsw_io, :env) == :prod do
-      Path.join([System.user_home!(), ".tsw_io", "firmware_cache"])
-    else
-      Application.app_dir(:tsw_io, "priv/firmware_cache")
-    end
-  end
-
-  defp ensure_cache_dir do
-    dir = firmware_cache_dir()
-
-    case File.mkdir_p(dir) do
-      :ok -> :ok
-      {:error, reason} -> {:error, {:cache_dir_error, reason}}
-    end
-  end
-
-  defp firmware_file_path(%FirmwareFile{} = file) do
-    filename = "#{file.board_type}_#{file.firmware_release_id}.hex"
-    Path.join(firmware_cache_dir(), filename)
-  end
 end
