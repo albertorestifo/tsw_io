@@ -86,7 +86,7 @@ defmodule TswIo.MixProject do
       {:req, "~> 0.5.0"},
       {:mimic, "~> 2.0", only: :test},
       {:usage_rules, "~> 0.1", only: :dev},
-      {:burrito, "~> 1.0.0"}
+      {:burrito, "~> 1.5.0"}
     ]
   end
 
