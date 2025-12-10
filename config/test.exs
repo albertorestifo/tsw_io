@@ -8,7 +8,9 @@ import Config
 config :tsw_io, TswIo.Repo,
   database: Path.expand("../tsw_io_test.db", __DIR__),
   pool_size: 5,
-  pool: Ecto.Adapters.SQL.Sandbox
+  pool: Ecto.Adapters.SQL.Sandbox,
+  # Prevent "Database busy" errors in CI by waiting for write lock
+  busy_timeout: 5000
 
 # We don't run a server during test. If one is required,
 # you can enable the server option below.
