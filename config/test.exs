@@ -41,3 +41,6 @@ config :tsw_io, :start_lever_controller, false
 # The GenServer performs automatic periodic checks and retains state, making it
 # difficult to test in isolation. Tests can start it manually if needed.
 config :tsw_io, :start_update_checker, false
+
+# Disable AppVersion.UpdateChecker GenServer in tests for the same reasons.
+config :tsw_io, :start_app_version_checker, false

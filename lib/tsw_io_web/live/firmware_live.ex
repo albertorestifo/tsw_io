@@ -283,6 +283,7 @@ defmodule TswIoWeb.FirmwareLive do
         devices={@nav_devices}
         simulator_status={@nav_simulator_status}
         firmware_update={@nav_firmware_update}
+        app_version_update={@nav_app_version_update}
         firmware_checking={@nav_firmware_checking}
         dropdown_open={@nav_dropdown_open}
         scanning={@nav_scanning}

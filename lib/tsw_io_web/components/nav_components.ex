@@ -9,6 +9,53 @@ defmodule TswIoWeb.NavComponents do
   import TswIoWeb.CoreComponents
 
   @doc """
+  App version update notification banner.
+
+  Displays when a new app version is available on GitHub.
+  """
+  attr :update, :map, default: nil
+
+  def app_version_update_banner(assigns) do
+    ~H"""
+    <div
+      :if={@update && @update.available}
+      class="bg-info text-info-content px-4 sm:px-8"
+      role="alert"
+    >
+      <div class="max-w-2xl mx-auto py-2 flex items-center justify-between gap-4">
+        <div class="flex items-center gap-3">
+          <.icon name="hero-arrow-up-circle" class="w-5 h-5 flex-shrink-0" />
+          <div class="text-sm">
+            <span class="font-medium">New version available:</span>
+            <span class="ml-1">v{@update.version}</span>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-2">
+          <a
+            href={TswIo.AppVersion.releases_url()}
+            target="_blank"
+            rel="noopener noreferrer"
+            class="btn btn-sm btn-ghost text-info-content hover:bg-info-content/10"
+          >
+            <.icon name="hero-arrow-top-right-on-square" class="w-4 h-4" />
+            View Release
+          </a>
+
+          <button
+            phx-click="dismiss_app_version_update"
+            class="btn btn-sm btn-ghost btn-circle text-info-content hover:bg-info-content/10"
+            aria-label="Dismiss"
+          >
+            <.icon name="hero-x-mark" class="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+    </div>
+    """
+  end
+
+  @doc """
   Firmware update notification banner.
 
   Displays when a new firmware version is available.
@@ -62,6 +109,7 @@ defmodule TswIoWeb.NavComponents do
   attr :devices, :list, required: true
   attr :simulator_status, :map, required: true
   attr :firmware_update, :map, default: nil
+  attr :app_version_update, :map, default: nil
   attr :firmware_checking, :boolean, default: false
   attr :dropdown_open, :boolean, default: false
   attr :scanning, :boolean, default: false
@@ -69,6 +117,7 @@ defmodule TswIoWeb.NavComponents do
 
   def nav_header(assigns) do
     ~H"""
+    <.app_version_update_banner update={@app_version_update} />
     <.firmware_update_banner update={@firmware_update} checking={@firmware_checking} />
     <header class="bg-base-100 border-b border-base-300 sticky top-0 z-50 px-4 sm:px-8">
       <div class="max-w-2xl mx-auto py-3 flex items-center">

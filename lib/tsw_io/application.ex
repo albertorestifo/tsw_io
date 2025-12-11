@@ -27,7 +27,8 @@ defmodule TswIo.Application do
       ] ++
         simulator_connection_child() ++
         lever_controller_child() ++
-        update_checker_child()
+        update_checker_child() ++
+        app_version_checker_child()
 
     # See https://hexdocs.pm/elixir/Supervisor.html
     # for other strategies and supported options
@@ -79,6 +80,17 @@ defmodule TswIo.Application do
   defp update_checker_child do
     if Application.get_env(:tsw_io, :start_update_checker, true) do
       [TswIo.Firmware.UpdateChecker]
+    else
+      []
+    end
+  end
+
+  # Returns the AppVersion.UpdateChecker child spec only in non-test environments.
+  # In test, this GenServer performs automatic periodic checks that could
+  # interfere with test isolation.
+  defp app_version_checker_child do
+    if Application.get_env(:tsw_io, :start_app_version_checker, true) do
+      [TswIo.AppVersion.UpdateChecker]
     else
       []
     end
