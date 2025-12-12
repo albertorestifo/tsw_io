@@ -30,7 +30,8 @@ defmodule TswIo.Serial.Connection.DeviceConnection do
           device_config_id: integer() | nil,
           device_version: String.t() | nil,
           upload_token: String.t() | nil,
-          error_reason: String.t() | nil
+          error_reason: String.t() | nil,
+          error_type: atom() | nil
         }
 
   @enforce_keys [:port, :status]
@@ -42,7 +43,8 @@ defmodule TswIo.Serial.Connection.DeviceConnection do
     :device_version,
     :failed_at,
     :upload_token,
-    :error_reason
+    :error_reason,
+    :error_type
   ]
 
   @doc "Create a new connection in :connecting state"
@@ -108,13 +110,14 @@ defmodule TswIo.Serial.Connection.DeviceConnection do
   @doc "Set error reason on an existing connection"
   @spec set_error_reason(t(), term()) :: t()
   def set_error_reason(%__MODULE__{} = conn, reason) do
-    %__MODULE__{conn | error_reason: format_error_reason(reason)}
+    error_type = if is_atom(reason), do: reason, else: nil
+    %__MODULE__{conn | error_reason: format_error_reason(reason), error_type: error_type}
   end
 
   @doc "Clear error reason (e.g., when retrying)"
   @spec clear_error(t()) :: t()
   def clear_error(%__MODULE__{} = conn) do
-    %__MODULE__{conn | error_reason: nil}
+    %__MODULE__{conn | error_reason: nil, error_type: nil}
   end
 
   # Format various error types into human-readable strings
@@ -130,7 +133,7 @@ defmodule TswIo.Serial.Connection.DeviceConnection do
   defp format_error_reason(:eperm), do: "Operation not permitted"
 
   defp format_error_reason(:no_valid_response),
-    do: "Device did not respond (not a TSW IO device?)"
+    do: "No TSW IO firmware detected"
 
   defp format_error_reason(:timeout), do: "Connection timed out"
 

@@ -43,6 +43,24 @@ defmodule TswIoWeb.FirmwareLive do
   end
 
   @impl true
+  def handle_params(params, _uri, socket) do
+    port = params["port"]
+
+    # Auto-open upload modal if a port is specified and we have releases
+    if port && !socket.assigns.show_upload_modal && !Enum.empty?(socket.assigns.releases) do
+      latest_release = hd(socket.assigns.releases)
+
+      {:noreply,
+       socket
+       |> assign(:selected_release, latest_release)
+       |> assign(:selected_port, port)
+       |> assign(:show_upload_modal, true)}
+    else
+      {:noreply, socket}
+    end
+  end
+
+  @impl true
   def handle_info({:devices_updated, devices}, socket) do
     {:noreply, assign(socket, :nav_devices, devices)}
   end
