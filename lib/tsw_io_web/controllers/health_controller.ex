@@ -11,6 +11,9 @@ defmodule TswIoWeb.HealthController do
 
   use TswIoWeb, :controller
 
+  import Ecto.Query
+
+  alias TswIo.Firmware.FirmwareRelease
   alias TswIo.Repo
 
   def index(conn, _params) do
@@ -27,27 +30,21 @@ defmodule TswIoWeb.HealthController do
 
   defp check_database_ready do
     # Try to query a table that exists after migrations
-    # Using a simple raw query to check if the database is accessible
-    # and migrations have run (configurations table should exist)
-    case Repo.query("SELECT 1 FROM configurations LIMIT 1", [], timeout: 5000) do
-      {:ok, _result} ->
-        :ok
+    # Using Ecto query to check if the database is accessible
+    # and migrations have run (firmware_releases table should exist)
+    try do
+      # Simple existence check - just see if we can query the table
+      Repo.exists?(from(r in FirmwareRelease, limit: 1))
+      :ok
+    rescue
+      Ecto.QueryError ->
+        {:error, "migrations_pending"}
 
-      {:error, error} ->
-        # Check if this is an undefined table error (migrations not complete)
-        case error do
-          %{postgres: %{code: :undefined_table}} ->
-            {:error, "migrations_pending"}
+      DBConnection.ConnectionError ->
+        {:error, "database_unavailable"}
 
-          _ ->
-            {:error, "database_unavailable"}
-        end
+      _ ->
+        {:error, "unknown"}
     end
-  rescue
-    DBConnection.ConnectionError ->
-      {:error, "database_unavailable"}
-
-    _ ->
-      {:error, "unknown"}
   end
 end

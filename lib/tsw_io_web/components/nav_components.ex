@@ -38,8 +38,7 @@ defmodule TswIoWeb.NavComponents do
             rel="noopener noreferrer"
             class="btn btn-sm btn-ghost text-info-content hover:bg-info-content/10"
           >
-            <.icon name="hero-arrow-top-right-on-square" class="w-4 h-4" />
-            View Release
+            <.icon name="hero-arrow-top-right-on-square" class="w-4 h-4" /> View Release
           </a>
 
           <button

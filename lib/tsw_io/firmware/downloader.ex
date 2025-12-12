@@ -192,5 +192,4 @@ defmodule TswIo.Firmware.Downloader do
         {:error, reason}
     end
   end
-
 end

@@ -197,8 +197,7 @@ defmodule TswIoWeb.FirmwareLive do
       {:noreply, assign(socket, :upload_error, nil)}
     else
       {:error, :no_firmware_for_board} ->
-        {:noreply,
-         assign(socket, :upload_error, "No firmware available for this board type.")}
+        {:noreply, assign(socket, :upload_error, "No firmware available for this board type.")}
 
       {:error, reason} ->
         {:noreply, assign(socket, :upload_error, "Failed to start upload: #{inspect(reason)}")}
@@ -335,18 +334,17 @@ defmodule TswIoWeb.FirmwareLive do
                     />
                     {if @show_older_releases,
                       do: "Hide older releases",
-                      else: "Show #{length(@older_releases)} older release#{if length(@older_releases) > 1, do: "s", else: ""}"}
+                      else:
+                        "Show #{length(@older_releases)} older release#{if length(@older_releases) > 1, do: "s", else: ""}"}
                   </button>
 
-                  <div
-                    class={[
-                      "overflow-hidden transition-all duration-150 ease-in-out",
-                      if(@show_older_releases,
-                        do: "max-h-[2000px] opacity-100 mt-4",
-                        else: "max-h-0 opacity-0"
-                      )
-                    ]}
-                  >
+                  <div class={[
+                    "overflow-hidden transition-all duration-150 ease-in-out",
+                    if(@show_older_releases,
+                      do: "max-h-[2000px] opacity-100 mt-4",
+                      else: "max-h-0 opacity-0"
+                    )
+                  ]}>
                     <div class="space-y-4">
                       <.release_card
                         :for={release <- @older_releases}

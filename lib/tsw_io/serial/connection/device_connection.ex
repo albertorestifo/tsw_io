@@ -128,7 +128,10 @@ defmodule TswIo.Serial.Connection.DeviceConnection do
   defp format_error_reason(:einval), do: "Invalid port configuration"
   defp format_error_reason(:enxio), do: "Device not configured"
   defp format_error_reason(:eperm), do: "Operation not permitted"
-  defp format_error_reason(:no_valid_response), do: "Device did not respond (not a TSW IO device?)"
+
+  defp format_error_reason(:no_valid_response),
+    do: "Device did not respond (not a TSW IO device?)"
+
   defp format_error_reason(:timeout), do: "Connection timed out"
 
   defp format_error_reason(reason) when is_atom(reason) do

@@ -11,6 +11,17 @@ defmodule TswIo.Firmware.UpdateChecker do
   - Checks no more than once per hour
   - Stores last check timestamp in database to persist across restarts
   - Configurable check interval (default: 24 hours)
+
+  ## Options
+
+  The following options can be passed to `start_link/1`:
+
+    * `:auto_check` - Whether to automatically schedule checks (default: true)
+    * `:startup_delay_ms` - Delay before first check in ms (default: 5000)
+    * `:check_interval_ms` - Interval between checks in ms (default: 24 hours)
+    * `:min_check_interval_ms` - Minimum time between checks in ms (default: 1 hour)
+    * `:initial_version` - Initial latest version to set (default: nil)
+
   """
 
   use GenServer
@@ -34,10 +45,10 @@ defmodule TswIo.Firmware.UpdateChecker do
   @default_check_interval_ms :timer.hours(24)
 
   # Rate limit: don't check more than once per hour
-  @min_check_interval_ms :timer.hours(1)
+  @default_min_check_interval_ms :timer.hours(1)
 
   # Startup delay: wait 5 seconds after app starts before first check
-  @startup_delay_ms :timer.seconds(5)
+  @default_startup_delay_ms :timer.seconds(5)
 
   defmodule State do
     @moduledoc false
@@ -45,23 +56,27 @@ defmodule TswIo.Firmware.UpdateChecker do
     @type t :: %__MODULE__{
             last_check_at: DateTime.t() | nil,
             check_interval_ms: integer(),
+            min_check_interval_ms: integer(),
             latest_version: String.t() | nil,
             checking: boolean(),
-            notification_shown: boolean()
+            notification_shown: boolean(),
+            auto_check: boolean()
           }
 
     defstruct [
       :last_check_at,
       :check_interval_ms,
+      :min_check_interval_ms,
       :latest_version,
       checking: false,
-      notification_shown: false
+      notification_shown: false,
+      auto_check: true
     ]
   end
 
   # Client API
 
-  def start_link(opts) do
+  def start_link(opts \\ []) do
     GenServer.start_link(__MODULE__, opts, name: __MODULE__)
   end
 
@@ -113,80 +128,64 @@ defmodule TswIo.Firmware.UpdateChecker do
     Phoenix.PubSub.subscribe(TswIo.PubSub, @pubsub_topic)
   end
 
-  # Test Helpers
-
-  @doc false
-  def reset_state_for_test do
-    GenServer.call(__MODULE__, :reset_state_for_test)
-  end
-
-  @doc false
-  def disable_automatic_checks_for_test do
-    GenServer.call(__MODULE__, :disable_automatic_checks)
-  end
-
   # Server Callbacks
 
   @impl true
-  def init(_opts) do
+  def init(opts) do
+    # Get configuration from opts or application config
     check_interval_ms =
-      Application.get_env(:tsw_io, :firmware_check_interval_ms, @default_check_interval_ms)
+      Keyword.get(
+        opts,
+        :check_interval_ms,
+        Application.get_env(:tsw_io, :firmware_check_interval_ms, @default_check_interval_ms)
+      )
+
+    min_check_interval_ms =
+      Keyword.get(opts, :min_check_interval_ms, @default_min_check_interval_ms)
+
+    startup_delay_ms =
+      Keyword.get(opts, :startup_delay_ms, @default_startup_delay_ms)
+
+    auto_check = Keyword.get(opts, :auto_check, true)
+    initial_version = Keyword.get(opts, :initial_version, nil)
 
     # Subscribe to device updates to know when devices connect/disconnect
     Phoenix.PubSub.subscribe(TswIo.PubSub, @device_updates_topic)
 
-    # Load last check from database
-    last_check = get_last_check_from_db()
+    # Load last check from database (skip if auto_check disabled for testing)
+    last_check = if auto_check, do: get_last_check_from_db(), else: nil
 
     state = %State{
       last_check_at: last_check && last_check.checked_at,
       check_interval_ms: check_interval_ms,
-      latest_version: nil,
+      min_check_interval_ms: min_check_interval_ms,
+      latest_version: initial_version,
       checking: false,
-      notification_shown: false
+      notification_shown: false,
+      auto_check: auto_check
     }
 
-    # Schedule startup check
-    Process.send_after(self(), :startup_check, @startup_delay_ms)
-
-    # Schedule periodic checks
-    schedule_next_check(check_interval_ms)
+    # Only schedule checks if auto_check is enabled
+    if auto_check do
+      Process.send_after(self(), :startup_check, startup_delay_ms)
+      schedule_next_check(check_interval_ms)
+    end
 
     {:ok, state}
   end
 
   @impl true
   def handle_call(:get_update_status, _from, %State{} = state) do
+    devices = Connection.connected_devices()
+
     response =
-      if state.latest_version && device_needs_update?(state.latest_version) do
+      if state.latest_version && device_needs_update?(devices, state.latest_version) do
         {:update_available, state.latest_version}
       else
         :no_update
       end
 
     {:reply, response, state}
-  end
-
-  @impl true
-  def handle_call(:reset_state_for_test, _from, %State{} = state) do
-    new_state = %{
-      state
-      | latest_version: nil,
-        checking: false,
-        notification_shown: false
-    }
-
-    {:reply, :ok, new_state}
-  end
-
-  @impl true
-  def handle_call(:disable_automatic_checks, _from, %State{} = state) do
-    # Set last_check_at to a far future time to prevent automatic checks
-    far_future = DateTime.utc_now() |> DateTime.add(365, :day)
-
-    new_state = %{state | last_check_at: far_future}
-
-    {:reply, :ok, new_state}
   end
 
   @impl true
@@ -243,9 +242,10 @@ defmodule TswIo.Firmware.UpdateChecker do
   end
 
   @impl true
-  def handle_info({:devices_updated, _devices}, %State{} = state) do
+  def handle_info({:devices_updated, devices}, %State{} = state) do
     # Re-evaluate whether to show the notification based on connected devices
-    new_state = maybe_broadcast_update(state)
+    # Use the devices from the event rather than querying Connection
+    new_state = maybe_broadcast_update(state, devices)
     {:noreply, new_state}
   end
 
@@ -257,7 +257,7 @@ defmodule TswIo.Firmware.UpdateChecker do
   end
 
   defp maybe_perform_check(%State{} = state, force) do
-    if force || should_check?(state.last_check_at) do
+    if force || should_check?(state) do
       perform_check_async(state)
     else
       Logger.debug("Skipping firmware check - rate limited")
@@ -265,12 +265,12 @@ defmodule TswIo.Firmware.UpdateChecker do
     end
   end
 
-  defp should_check?(nil), do: true
+  defp should_check?(%State{last_check_at: nil}), do: true
 
-  defp should_check?(last_check_at) do
+  defp should_check?(%State{last_check_at: last_check_at, min_check_interval_ms: min_interval}) do
     now = DateTime.utc_now()
     elapsed_ms = DateTime.diff(now, last_check_at, :millisecond)
-    elapsed_ms >= @min_check_interval_ms
+    elapsed_ms >= min_interval
   end
 
   defp perform_check_async(%State{} = state) do
@@ -394,10 +394,15 @@ defmodule TswIo.Firmware.UpdateChecker do
   end
 
   # Check if we should broadcast an update notification and update state
-  defp maybe_broadcast_update(%State{latest_version: nil} = state), do: state
+  # When called without devices, query the Connection for current devices
+  defp maybe_broadcast_update(%State{} = state) do
+    maybe_broadcast_update(state, Connection.connected_devices())
+  end
 
-  defp maybe_broadcast_update(%State{latest_version: version} = state) do
-    needs_update = device_needs_update?(version)
+  defp maybe_broadcast_update(%State{latest_version: nil} = state, _devices), do: state
+
+  defp maybe_broadcast_update(%State{latest_version: version} = state, devices) do
+    needs_update = device_needs_update?(devices, version)
 
     cond do
       needs_update and not state.notification_shown ->
@@ -419,9 +424,9 @@ defmodule TswIo.Firmware.UpdateChecker do
   end
 
   # Check if any connected device has firmware older than the latest version
-  defp device_needs_update?(latest_version) do
-    Connection.connected_devices()
-    |> Enum.filter(&(&1.device_version != nil))
+  defp device_needs_update?(devices, latest_version) do
+    devices
+    |> Enum.filter(&(&1.status == :connected and &1.device_version != nil))
     |> Enum.any?(fn device ->
       version_older_than?(device.device_version, latest_version)
     end)

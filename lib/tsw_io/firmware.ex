@@ -76,7 +76,11 @@ defmodule TswIo.Firmware do
 
   # Re-export FilePath functions for convenience
   defdelegate firmware_file_path(file), to: TswIo.Firmware.FilePath, as: :firmware_path
-  defdelegate firmware_file_path(version, board_type), to: TswIo.Firmware.FilePath, as: :firmware_path
+
+  defdelegate firmware_file_path(version, board_type),
+    to: TswIo.Firmware.FilePath,
+    as: :firmware_path
+
   defdelegate firmware_cache_dir(), to: TswIo.Firmware.FilePath, as: :cache_dir
 
   # Release operations
