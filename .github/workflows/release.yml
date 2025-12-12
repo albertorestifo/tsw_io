@@ -6,9 +6,9 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Version to build (e.g., 0.1.0)'
-        required: false
-        default: '0.1.0'
+        description: 'Version to build (e.g., 0.1.2) - must match version in source files'
+        required: true
+        type: string
 
 env:
   ELIXIR_VERSION: "1.19"
@@ -17,8 +17,66 @@ env:
   AVRDUDE_VERSION: "8.1"
 
 jobs:
+  # Verify version in source files matches the release tag
+  verify-version:
+    name: Verify Version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.get-version.outputs.version }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Get and verify version
+        id: get-version
+        run: |
+          # Get expected version from tag or input
+          if [ "${{ github.event_name }}" = "release" ]; then
+            EXPECTED="${{ github.event.release.tag_name }}"
+          else
+            EXPECTED="${{ github.event.inputs.version }}"
+          fi
+          # Remove 'v' prefix if present
+          EXPECTED="${EXPECTED#v}"
+
+          echo "Expected version: $EXPECTED"
+
+          # Extract versions from source files
+          MIX_VERSION=$(grep -E 'version: "[0-9]+\.[0-9]+\.[0-9]+"' mix.exs | head -1 | sed 's/.*version: "\([^"]*\)".*/\1/')
+          TAURI_VERSION=$(grep -E '"version": "[0-9]+\.[0-9]+\.[0-9]+"' tauri/src-tauri/tauri.conf.json | head -1 | sed 's/.*"version": "\([^"]*\)".*/\1/')
+          CARGO_VERSION=$(grep -E '^version = "[0-9]+\.[0-9]+\.[0-9]+"' tauri/src-tauri/Cargo.toml | head -1 | sed 's/.*version = "\([^"]*\)".*/\1/')
+
+          echo "mix.exs version: $MIX_VERSION"
+          echo "tauri.conf.json version: $TAURI_VERSION"
+          echo "Cargo.toml version: $CARGO_VERSION"
+
+          # Verify all versions match
+          FAILED=0
+          if [ "$MIX_VERSION" != "$EXPECTED" ]; then
+            echo "::error::mix.exs version ($MIX_VERSION) does not match expected ($EXPECTED)"
+            FAILED=1
+          fi
+          if [ "$TAURI_VERSION" != "$EXPECTED" ]; then
+            echo "::error::tauri.conf.json version ($TAURI_VERSION) does not match expected ($EXPECTED)"
+            FAILED=1
+          fi
+          if [ "$CARGO_VERSION" != "$EXPECTED" ]; then
+            echo "::error::Cargo.toml version ($CARGO_VERSION) does not match expected ($EXPECTED)"
+            FAILED=1
+          fi
+
+          if [ "$FAILED" = "1" ]; then
+            echo ""
+            echo "::error::Version mismatch! Run './scripts/update-version.sh $EXPECTED' and commit before releasing."
+            exit 1
+          fi
+
+          echo "All versions match: $EXPECTED"
+          echo "version=$EXPECTED" >> $GITHUB_OUTPUT
+
   build-elixir:
     name: Build Elixir (${{ matrix.target }})
+    needs: [verify-version]
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -107,7 +165,7 @@ jobs:
 
   build-tauri:
     name: Build Tauri (${{ matrix.target }})
-    needs: [build-elixir, download-avrdude]
+    needs: [verify-version, build-elixir, download-avrdude]
     runs-on: ${{ matrix.os }}
     permissions:
       contents: write
@@ -214,8 +272,8 @@ jobs:
           projectPath: tauri
           tauriScript: npx tauri
           args: ${{ matrix.tauri_args }}
-          tagName: ${{ github.event.release.tag_name || github.event.inputs.version }}
-          releaseName: "tsw_io v__VERSION__"
+          tagName: v${{ needs.verify-version.outputs.version }}
+          releaseName: "tsw_io v${{ needs.verify-version.outputs.version }}"
           releaseBody: "See the release notes for details."
           releaseDraft: false
           prerelease: false
