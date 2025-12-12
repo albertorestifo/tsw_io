@@ -336,6 +336,13 @@ defmodule TswIoWeb.NavComponents do
         <span :if={@device.device_version}> · </span>
         <span class="capitalize">{@device.status}</span>
       </div>
+      <div
+        :if={@device.status == :failed and @device.error_reason}
+        class="mt-1 text-xs text-error/80 pl-4 flex items-start gap-1"
+      >
+        <.icon name="hero-exclamation-circle-mini" class="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
+        <span>{@device.error_reason}</span>
+      </div>
     </div>
     """
   end

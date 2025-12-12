@@ -14,6 +14,13 @@ defmodule TswIoWeb.Router do
     plug :accepts, ["json"]
   end
 
+  # Health check endpoint - returns 200 only when app is fully ready
+  scope "/api", TswIoWeb do
+    pipe_through :api
+
+    get "/health", HealthController, :index
+  end
+
   scope "/", TswIoWeb do
     pipe_through :browser
 

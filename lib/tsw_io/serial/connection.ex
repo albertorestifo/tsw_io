@@ -299,8 +299,12 @@ defmodule TswIo.Serial.Connection do
   @impl true
   def handle_info({:circuits_uart, port, {:error, reason}}, state) do
     Logger.error("Error on port #{port}: #{inspect(reason)}")
+    # Store the error reason before disconnecting
+    updated_state =
+      State.update(state, port, &DeviceConnection.set_error_reason(&1, reason))
+
     GenServer.cast(self(), {:disconnect, port})
-    {:noreply, state}
+    {:noreply, updated_state}
   end
 
   @impl true
@@ -329,6 +333,7 @@ defmodule TswIo.Serial.Connection do
         updated_state =
           State.update(state, port, fn conn ->
             conn
+            |> DeviceConnection.set_error_reason("Connection lost unexpectedly")
             |> DeviceConnection.mark_disconnecting()
             |> DeviceConnection.mark_failed()
           end)
@@ -358,8 +363,12 @@ defmodule TswIo.Serial.Connection do
     case State.get(state, port) do
       %DeviceConnection{status: :discovering} ->
         Logger.warning("Discovery timeout for port #{port}")
+        # Store the error reason before disconnecting
+        updated_state =
+          State.update(state, port, &DeviceConnection.set_error_reason(&1, :no_valid_response))
+
         GenServer.cast(self(), {:disconnect, port})
-        {:noreply, state}
+        {:noreply, updated_state}
 
       _ ->
         # Already progressed past discovering
@@ -445,9 +454,13 @@ defmodule TswIo.Serial.Connection do
 
       {:error, reason} ->
         Logger.error("Failed to open port #{port}: #{inspect(reason)}")
-        # Mark as disconnecting and cleanup
+        # Mark as disconnecting with error reason and cleanup
         updated_state =
-          State.update(state_with_conn, port, &DeviceConnection.mark_disconnecting/1)
+          State.update(state_with_conn, port, fn conn ->
+            conn
+            |> DeviceConnection.set_error_reason(reason)
+            |> DeviceConnection.mark_disconnecting()
+          end)
 
         start_async_cleanup(port, pid)
         {:noreply, updated_state}
@@ -464,8 +477,12 @@ defmodule TswIo.Serial.Connection do
     else
       {:error, reason} ->
         Logger.error("Failed to discover/configure device on port #{port}: #{inspect(reason)}")
+        # Store the error reason before disconnecting
+        updated_state =
+          State.update(state, port, &DeviceConnection.set_error_reason(&1, reason))
+
         GenServer.cast(self(), {:disconnect, port})
-        {:noreply, state}
+        {:noreply, updated_state}
     end
   end
 

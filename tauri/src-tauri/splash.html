@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TSW IO</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      background: linear-gradient(135deg, #1e1e2e 0%, #2d2d44 100%);
+      color: #e4e4e7;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    .logo {
+      font-size: 2.5rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      margin-bottom: 2rem;
+      background: linear-gradient(135deg, #818cf8 0%, #a78bfa 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .spinner-container {
+      position: relative;
+      width: 48px;
+      height: 48px;
+      margin-bottom: 1.5rem;
+    }
+    .spinner {
+      width: 48px;
+      height: 48px;
+      border: 3px solid rgba(129, 140, 248, 0.2);
+      border-top-color: #818cf8;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    #status {
+      font-size: 0.875rem;
+      color: #a1a1aa;
+      transition: color 0.3s ease;
+    }
+    .version {
+      position: absolute;
+      bottom: 1rem;
+      font-size: 0.75rem;
+      color: #52525b;
+    }
+  </style>
+</head>
+<body>
+  <div class="logo">TSW IO</div>
+  <div class="spinner-container">
+    <div class="spinner"></div>
+  </div>
+  <p id="status">Starting...</p>
+  <p class="version">v0.1.0</p>
+</body>
+</html>

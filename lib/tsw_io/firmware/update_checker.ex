@@ -3,7 +3,9 @@ defmodule TswIo.Firmware.UpdateChecker do
   Periodically checks for firmware updates and notifies users.
 
   Runs an initial check on startup (after a brief delay) and then
-  checks periodically. Broadcasts PubSub events when updates are found.
+  checks periodically. Broadcasts PubSub events only when:
+  1. A new firmware version is available on GitHub
+  2. At least one connected device has firmware older than the latest
 
   Rate limiting:
   - Checks no more than once per hour
@@ -20,9 +22,13 @@ defmodule TswIo.Firmware.UpdateChecker do
   alias TswIo.Firmware
   alias TswIo.Firmware.UpdateCheck
   alias TswIo.Repo
+  alias TswIo.Serial.Connection
 
   # PubSub topic for broadcasting update notifications
   @pubsub_topic "firmware:update_notifications"
+
+  # PubSub topic for device updates
+  @device_updates_topic "device_updates"
 
   # Default check interval: 24 hours
   @default_check_interval_ms :timer.hours(24)
@@ -39,17 +45,17 @@ defmodule TswIo.Firmware.UpdateChecker do
     @type t :: %__MODULE__{
             last_check_at: DateTime.t() | nil,
             check_interval_ms: integer(),
-            update_available: boolean(),
             latest_version: String.t() | nil,
-            checking: boolean()
+            checking: boolean(),
+            notification_shown: boolean()
           }
 
     defstruct [
       :last_check_at,
       :check_interval_ms,
       :latest_version,
-      update_available: false,
-      checking: false
+      checking: false,
+      notification_shown: false
     ]
   end
 
@@ -72,9 +78,12 @@ defmodule TswIo.Firmware.UpdateChecker do
   @doc """
   Get the current update status.
 
+  Only returns `{:update_available, version}` if a connected device
+  actually needs the update (has older firmware).
+
   Returns:
-    * `{:update_available, version}` - New version available
-    * `:no_update` - No updates or not checked yet
+    * `{:update_available, version}` - New version available and device needs it
+    * `:no_update` - No updates, not checked yet, or no device needs update
   """
   @spec get_update_status() :: {:update_available, String.t()} | :no_update
   def get_update_status do
@@ -123,15 +132,18 @@ defmodule TswIo.Firmware.UpdateChecker do
     check_interval_ms =
       Application.get_env(:tsw_io, :firmware_check_interval_ms, @default_check_interval_ms)
 
+    # Subscribe to device updates to know when devices connect/disconnect
+    Phoenix.PubSub.subscribe(TswIo.PubSub, @device_updates_topic)
+
     # Load last check from database
     last_check = get_last_check_from_db()
 
     state = %State{
       last_check_at: last_check && last_check.checked_at,
       check_interval_ms: check_interval_ms,
-      update_available: false,
       latest_version: nil,
-      checking: false
+      checking: false,
+      notification_shown: false
     }
 
     # Schedule startup check
@@ -146,7 +158,7 @@ defmodule TswIo.Firmware.UpdateChecker do
   @impl true
   def handle_call(:get_update_status, _from, %State{} = state) do
     response =
-      if state.update_available && state.latest_version do
+      if state.latest_version && device_needs_update?(state.latest_version) do
         {:update_available, state.latest_version}
       else
         :no_update
@@ -159,9 +171,9 @@ defmodule TswIo.Firmware.UpdateChecker do
   def handle_call(:reset_state_for_test, _from, %State{} = state) do
     new_state = %{
       state
-      | update_available: false,
-        latest_version: nil,
-        checking: false
+      | latest_version: nil,
+        checking: false,
+        notification_shown: false
     }
 
     {:reply, :ok, new_state}
@@ -186,7 +198,9 @@ defmodule TswIo.Firmware.UpdateChecker do
   def handle_cast(:dismiss_notification, %State{} = state) do
     broadcast(:firmware_update_dismissed)
 
-    new_state = %{state | update_available: false, latest_version: nil}
+    # Keep latest_version so we can re-show if a new device connects
+    # but mark notification as dismissed for current session
+    new_state = %{state | notification_shown: false}
 
     {:noreply, new_state}
   end
@@ -219,6 +233,20 @@ defmodule TswIo.Firmware.UpdateChecker do
   def handle_info({:DOWN, _ref, :process, _pid, _reason}, %State{} = state) do
     # Task process died - just reset checking state
     {:noreply, %{state | checking: false}}
+  end
+
+  # Handle device updates - check if we should show/hide the notification
+  @impl true
+  def handle_info({:devices_updated, _devices}, %State{latest_version: nil} = state) do
+    # No version info yet, nothing to do
+    {:noreply, state}
+  end
+
+  @impl true
+  def handle_info({:devices_updated, _devices}, %State{} = state) do
+    # Re-evaluate whether to show the notification based on connected devices
+    new_state = maybe_broadcast_update(state)
+    {:noreply, new_state}
   end
 
   # Private Functions
@@ -296,23 +324,18 @@ defmodule TswIo.Firmware.UpdateChecker do
     {:error, reason, checked_at}
   end
 
-  defp handle_check_result({:ok, update_available, version, checked_at}, %State{} = state) do
+  defp handle_check_result({:ok, _new_releases_exist, version, checked_at}, %State{} = state) do
     broadcast({:firmware_update_checking, false})
 
     new_state = %{
       state
       | last_check_at: checked_at,
-        update_available: update_available,
         latest_version: version,
         checking: false
     }
 
-    if update_available do
-      Logger.info("Firmware update available: #{version}")
-      broadcast({:firmware_update_available, version})
-    else
-      Logger.debug("No new firmware updates found")
-    end
+    # Check if any connected device needs this update
+    new_state = maybe_broadcast_update(new_state)
 
     {:noreply, new_state}
   end
@@ -369,4 +392,71 @@ defmodule TswIo.Firmware.UpdateChecker do
   defp broadcast(event) do
     Phoenix.PubSub.broadcast(TswIo.PubSub, @pubsub_topic, event)
   end
+
+  # Check if we should broadcast an update notification and update state
+  defp maybe_broadcast_update(%State{latest_version: nil} = state), do: state
+
+  defp maybe_broadcast_update(%State{latest_version: version} = state) do
+    needs_update = device_needs_update?(version)
+
+    cond do
+      needs_update and not state.notification_shown ->
+        # Device needs update and we haven't shown notification yet
+        Logger.info("Firmware update available: #{version} (device needs update)")
+        broadcast({:firmware_update_available, version})
+        %{state | notification_shown: true}
+
+      not needs_update and state.notification_shown ->
+        # No device needs update anymore, dismiss notification
+        Logger.debug("No connected device needs firmware update, dismissing notification")
+        broadcast(:firmware_update_dismissed)
+        %{state | notification_shown: false}
+
+      true ->
+        # No change needed
+        state
+    end
+  end
+
+  # Check if any connected device has firmware older than the latest version
+  defp device_needs_update?(latest_version) do
+    Connection.connected_devices()
+    |> Enum.filter(&(&1.device_version != nil))
+    |> Enum.any?(fn device ->
+      version_older_than?(device.device_version, latest_version)
+    end)
+  end
+
+  # Compare semantic versions (e.g., "1.0.0" < "1.0.1")
+  defp version_older_than?(device_version, latest_version) do
+    case {parse_version(device_version), parse_version(latest_version)} do
+      {{:ok, device}, {:ok, latest}} ->
+        device < latest
+
+      _ ->
+        # If we can't parse versions, assume update is needed for safety
+        true
+    end
+  end
+
+  defp parse_version(version_string) when is_binary(version_string) do
+    # Remove leading 'v' if present
+    version_string = String.trim_leading(version_string, "v")
+
+    case String.split(version_string, ".") do
+      [major, minor, patch] ->
+        with {maj, ""} <- Integer.parse(major),
+             {min, ""} <- Integer.parse(minor),
+             {pat, ""} <- Integer.parse(patch) do
+          {:ok, {maj, min, pat}}
+        else
+          _ -> :error
+        end
+
+      _ ->
+        :error
+    end
+  end
+
+  defp parse_version(_), do: :error
 end

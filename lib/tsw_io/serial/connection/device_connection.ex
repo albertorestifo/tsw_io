@@ -29,11 +29,21 @@ defmodule TswIo.Serial.Connection.DeviceConnection do
           failed_at: integer() | nil,
           device_config_id: integer() | nil,
           device_version: String.t() | nil,
-          upload_token: String.t() | nil
+          upload_token: String.t() | nil,
+          error_reason: String.t() | nil
         }
 
   @enforce_keys [:port, :status]
-  defstruct [:port, :status, :pid, :device_config_id, :device_version, :failed_at, :upload_token]
+  defstruct [
+    :port,
+    :status,
+    :pid,
+    :device_config_id,
+    :device_version,
+    :failed_at,
+    :upload_token,
+    :error_reason
+  ]
 
   @doc "Create a new connection in :connecting state"
   @spec new(String.t(), pid()) :: t()
@@ -85,6 +95,47 @@ defmodule TswIo.Serial.Connection.DeviceConnection do
   def mark_failed(%__MODULE__{status: :disconnecting} = conn) do
     %__MODULE__{conn | status: :failed, pid: nil, failed_at: System.monotonic_time(:millisecond)}
   end
+
+  @doc "Mark as failed with an error reason"
+  @spec mark_failed_with_reason(t(), String.t()) :: t()
+  def mark_failed_with_reason(%__MODULE__{} = conn, reason) when is_binary(reason) do
+    conn
+    |> mark_disconnecting()
+    |> mark_failed()
+    |> Map.put(:error_reason, reason)
+  end
+
+  @doc "Set error reason on an existing connection"
+  @spec set_error_reason(t(), term()) :: t()
+  def set_error_reason(%__MODULE__{} = conn, reason) do
+    %__MODULE__{conn | error_reason: format_error_reason(reason)}
+  end
+
+  @doc "Clear error reason (e.g., when retrying)"
+  @spec clear_error(t()) :: t()
+  def clear_error(%__MODULE__{} = conn) do
+    %__MODULE__{conn | error_reason: nil}
+  end
+
+  # Format various error types into human-readable strings
+  defp format_error_reason(reason) when is_binary(reason), do: reason
+
+  defp format_error_reason(:eacces), do: "Permission denied"
+  defp format_error_reason(:enoent), do: "Port not found"
+  defp format_error_reason(:ebusy), do: "Port is busy (in use by another program)"
+  defp format_error_reason(:eagain), do: "Resource temporarily unavailable"
+  defp format_error_reason(:eio), do: "I/O error"
+  defp format_error_reason(:einval), do: "Invalid port configuration"
+  defp format_error_reason(:enxio), do: "Device not configured"
+  defp format_error_reason(:eperm), do: "Operation not permitted"
+  defp format_error_reason(:no_valid_response), do: "Device did not respond (not a TSW IO device?)"
+  defp format_error_reason(:timeout), do: "Connection timed out"
+
+  defp format_error_reason(reason) when is_atom(reason) do
+    reason |> Atom.to_string() |> String.replace("_", " ") |> String.capitalize()
+  end
+
+  defp format_error_reason(reason), do: inspect(reason)
 
   @doc "Check if port should be retried (failed long enough ago)"
   @spec should_retry?(t(), integer()) :: boolean()
