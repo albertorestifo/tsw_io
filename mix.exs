@@ -84,7 +84,7 @@ defmodule Trenino.MixProject do
       {:dns_cluster, "~> 0.2.0"},
       {:bandit, "~> 1.5"},
       {:circuits_uart, "~> 1.5"},
-      {:req, "~> 0.6.1"},
+      {:req, "~> 0.7.4"},
       {:lua, "~> 1.0.1"},
       {:polymorphic_embed, "~> 5.0"},
       {:mimic, "~> 2.0", only: :test},
